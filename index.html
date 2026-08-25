@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="lo">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#126d47" />
+  <title>ໂພນມະນີ | ອາໄຫຼ່ & ເຄສໂທລະສັບ</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="ໜ້າຫຼັກ ໂພນມະນີ">
+        <span id="brandMark" class="brand-mark">P</span>
+        <span><strong id="shopNameLabel">ໂພນມະນີ</strong><small id="shopTaglineLabel">ອາໄຫຼ່ & ເຄສໂທລະສັບ</small></span>
+      </a>
+      <div class="header-actions">
+        <button id="managerButton" class="text-button" type="button">ຜູ້ຈັດການ</button>
+        <button id="cartButton" class="cart-button" type="button" aria-label="ເບິ່ງກະຕ່າ">
+          <span aria-hidden="true">🛒</span><span>ກະຕ່າ</span><b id="cartCount">0</b>
+        </button>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">ສິນຄ້າສຳລັບທຸກຮຸ່ນ</p>
+          <h1>ເລືອກອາໄຫຼ່ ແລະ ເຄສທີ່ເໝາະກັບທ່ານ</h1>
+          <p class="hero-copy">ສັ່ງງ່າຍ ສົ່ງໄດ້ທົ່ວປະເທດ ເລືອກຈ່າຍປາຍທາງ ຫຼື ໂອນເງິນໄດ້</p>
+          <a class="primary-button" href="#products">ເລີ່ມເລືອກສິນຄ້າ</a>
+        </div>
+        <div class="hero-card" aria-hidden="true">
+          <div class="phone-shape"><span></span><i></i><i></i><i></i></div>
+          <div class="floating-tag tag-one">ເຄສໃໝ່</div>
+          <div class="floating-tag tag-two">ສົ່ງທົ່ວລາວ</div>
+        </div>
+      </section>
+
+      <section class="shop-section" id="products">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">ຮ້ານຄ້າ</p>
+            <h2>ສິນຄ້າຂອງເຮົາ</h2>
+          </div>
+          <label class="search-box"><span>⌕</span><input id="customerSearch" type="search" placeholder="ຄົ້ນຫາຊື່ສິນຄ້າ, ຮຸ່ນ..." /></label>
+        </div>
+        <div id="categoryTabs" class="category-tabs" aria-label="ໝວດສິນຄ້າ"></div>
+        <div id="productGrid" class="product-grid"></div>
+        <div id="emptyProducts" class="empty-state hidden">
+          <span>⌕</span><h3>ບໍ່ພົບສິນຄ້າ</h3><p>ລອງຄົ້ນຫາດ້ວຍຄຳອື່ນ ຫຼື ເລືອກໝວດໃໝ່</p>
+        </div>
+      </section>
+    </main>
+
+    <footer>© <span id="year"></span> <span id="footerShopName">ໂພນມະນີ</span> · <span id="footerShopTagline">ອາໄຫຼ່ & ເຄສໂທລະສັບ</span></footer>
+  </div>
+
+  <aside id="cartDrawer" class="drawer" aria-hidden="true">
+    <div class="drawer-head"><div><p class="eyebrow">ລາຍການເລືອກ</p><h2>ກະຕ່າຂອງທ່ານ</h2></div><button class="icon-button close-drawer" type="button" aria-label="ປິດ">×</button></div>
+    <div id="cartItems" class="cart-items"></div>
+    <div class="drawer-footer">
+      <div class="total-row"><span>ລວມທັງໝົດ</span><strong id="cartTotal">0 ₭</strong></div>
+      <button id="checkoutButton" class="primary-button full" type="button">ສັ່ງຊື້ເລີຍ</button>
+    </div>
+  </aside>
+  <div id="overlay" class="overlay hidden"></div>
+
+  <div id="loginModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+    <div class="modal-panel compact">
+      <button class="icon-button modal-close" type="button" aria-label="ປິດ">×</button>
+      <p class="eyebrow">ສຳລັບຮ້ານ</p><h2 id="loginTitle">ເຂົ້າສູ່ລະບົບຜູ້ຈັດການ</h2>
+      <p class="muted">ເຂົ້າລະບົບແລ້ວ ລະບົບຈະຈື່ທ່ານໄວ້ໃນເຄື່ອງນີ້</p>
+      <form id="loginForm" class="form-stack">
+        <label>ອີເມວ<input name="email" type="email" autocomplete="email" placeholder="admin@phonemani.la" required /></label>
+        <label>ລະຫັດຜ່ານ<input name="password" type="password" autocomplete="current-password" placeholder="••••••••" required /></label>
+        <p id="loginError" class="form-error hidden">ອີເມວ ຫຼື ລະຫັດຜ່ານບໍ່ຖືກຕ້ອງ</p>
+        <button class="primary-button full" type="submit">ເຂົ້າສູ່ຫຼັງບ້ານ</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="checkoutModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="checkoutTitle">
+    <div class="modal-panel checkout-panel">
+      <button class="icon-button modal-close" type="button" aria-label="ປິດ">×</button>
+      <div class="checkout-layout">
+        <form id="checkoutForm" class="form-stack">
+          <p class="eyebrow">ຂັ້ນຕອນສຸດທ້າຍ</p><h2 id="checkoutTitle">ຂໍ້ມູນການສັ່ງຊື້</h2>
+          <div class="two-fields">
+            <label>ຊື່ຜູ້ຮັບ<input name="customerName" placeholder="ຊື່-ນາມສະກຸນ" required /></label>
+            <label>ເບີໂທ<input name="phone" inputmode="tel" placeholder="020 xxxx xxxx" required /></label>
+          </div>
+          <label>ທີ່ຢູ່ສົ່ງສິນຄ້າ<textarea name="address" rows="2" placeholder="ບ້ານ, ເມືອງ, ແຂວງ"></textarea></label>
+          <div class="two-fields">
+            <label>ສາຂາຂົນສົ່ງ<input name="transportBranch" placeholder="ຕົວຢ່າງ: ຮຸ່ງອາລຸນ ສາຂາ..." /></label>
+            <label>ວິທີຮັບສິນຄ້າ
+              <select name="deliveryMethod"><option value="ship">ໃຫ້ສົ່ງໃຫ້</option><option value="pickup">ຮັບເອງທີ່ຮ້ານ</option></select>
+            </label>
+          </div>
+          <label>ໝາຍເຫດ <span class="optional">(ບໍ່ຕ້ອງໃສ່ກໍໄດ້)</span><textarea name="note" rows="2" placeholder="ເຊັ່ນ ສີ, ຮຸ່ນໂທລະສັບ, ເວລາສະດວກ..."></textarea></label>
+          <fieldset class="payment-choice"><legend>ວິທີຊຳລະເງິນ</legend>
+            <label><input type="radio" name="paymentMethod" value="cod" checked /> ເກັບເງິນປາຍທາງ</label>
+            <label><input type="radio" name="paymentMethod" value="transfer" /> ໂອນເງິນ</label>
+            <label><input type="radio" name="paymentMethod" value="pickup" /> ຈ່າຍຕອນຮັບທີ່ຮ້ານ</label>
+          </fieldset>
+          <div id="transferFields" class="transfer-fields hidden">
+            <div id="paymentQrBox" class="qr-box"></div>
+            <p id="paymentAccount" class="payment-account"></p>
+            <label>ອັບໂຫຼດໃບໂອນ <span class="optional">(ຖ້າໂອນແລ້ວ)</span><input id="receiptInput" name="receipt" type="file" accept="image/*" /></label>
+          </div>
+          <button class="primary-button full" type="submit">ຢືນຢັນສັ່ງຊື້</button>
+        </form>
+        <aside class="order-summary"><p class="eyebrow">ກວດສອບ</p><h3>ລາຍການສັ່ງຊື້</h3><div id="checkoutItems"></div><div class="total-row"><span>ລວມຈ່າຍ</span><strong id="checkoutTotal">0 ₭</strong></div></aside>
+      </div>
+    </div>
+  </div>
+
+  <div id="successModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-panel compact success-panel"><div class="success-icon">✓</div><p class="eyebrow">ສຳເລັດແລ້ວ</p><h2>ຮັບຄຳສັ່ງຊື້ແລ້ວ</h2><p id="successText" class="muted"></p><button class="primary-button full modal-close" type="button">ກັບໄປເລືອກສິນຄ້າ</button></div>
+  </div>
+
+  <section id="managerView" class="manager-view hidden">
+    <header class="manager-header"><div><p class="eyebrow">ຫຼັງບ້ານ</p><h1>ຈັດການຮ້ານ</h1></div><div><button id="backToShop" class="secondary-button" type="button">ເບິ່ງໜ້າຮ້ານ</button><button id="logoutButton" class="text-button danger-text" type="button">ອອກຈາກລະບົບ</button></div></header>
+    <div class="manager-layout">
+      <nav class="manager-nav" aria-label="ເມນູຜູ້ຈັດການ">
+        <button class="manager-tab active" data-manager-tab="dashboard" type="button">▦ ພາບລວມ</button>
+        <button class="manager-tab" data-manager-tab="orders" type="button">▤ ອໍເດີ <b id="orderBadge">0</b></button>
+        <button class="manager-tab" data-manager-tab="products" type="button">◈ ສິນຄ້າ</button>
+        <button class="manager-tab" data-manager-tab="categories" type="button">▱ ໝວດສິນຄ້າ</button>
+        <button class="manager-tab" data-manager-tab="payment" type="button">▧ ຮັບຊຳລະ</button>
+        <button class="manager-tab" data-manager-tab="financial" type="button">₭ ການເງິນ</button>
+        <button class="manager-tab" data-manager-tab="profile" type="button">◉ ຂໍ້ມູນຮ້ານ</button>
+        <button class="manager-tab" data-manager-tab="data" type="button">⇩ ຂໍ້ມູນ</button>
+      </nav>
+      <div class="manager-content">
+        <section class="manager-pane" data-pane="dashboard">
+          <div class="pane-heading"><div><h2>ພາບລວມຂອງຮ້ານ</h2><p>ເບິ່ງຍອດຂາຍ ແລະ ອໍເດີລ່າສຸດ</p></div></div>
+          <div id="statsGrid" class="stats-grid"></div><div class="dashboard-columns"><div class="panel"><h3>ອໍເດີລ່າສຸດ</h3><div id="recentOrders"></div></div><div class="panel"><h3>ສິນຄ້າທີ່ຕ້ອງສັ່ງ</h3><p class="muted small-copy">ຫຼັງຈາກຮັບອໍເດີແລ້ວ ກົດລິ້ງຮ້ານຕົ້ນທາງເພື່ອສັ່ງສິນຄ້າ.</p><div id="supplierQueue"></div></div></div>
+        </section>
+
+        <section class="manager-pane hidden" data-pane="orders">
+          <div class="pane-heading"><div><h2>ອໍເດີລູກຄ້າ</h2><p>ຈັດການສະຖານະ ແລະ ເບິ່ງຂໍ້ມູນການສົ່ງ</p></div><label class="search-box manager-search"><span>⌕</span><input id="managerOrderSearch" type="search" placeholder="ຄົ້ນຫາເລກອໍເດີ, ຊື່, ເບີໂທ..." /></label></div>
+          <div id="orderFilters" class="filter-row"></div><div id="ordersList" class="orders-list"></div>
+        </section>
+
+        <section class="manager-pane hidden" data-pane="products">
+          <div class="pane-heading"><div><h2>ສິນຄ້າ</h2><p>ເພີ່ມສິນຄ້າ ຕົ້ນທຶນ ລາຄາຂາຍ ແລະ ລິ້ງຮ້ານຕົ້ນທາງ</p></div><button id="openProductForm" class="primary-button" type="button">+ ເພີ່ມສິນຄ້າ</button></div>
+          <div id="productFormWrap" class="form-card hidden">
+            <div class="form-card-title"><h3 id="productFormTitle">ເພີ່ມສິນຄ້າໃໝ່</h3><button id="closeProductForm" class="icon-button" type="button">×</button></div>
+            <p class="cost-note">ລາຄາຕົ້ນທຶນ: ຜູ້ບໍລິຫານຕ້ອງຄຳນວນຕົ້ນທຶນຕໍ່ 1 ຊິ້ນ (ລວມຄ່າສົ່ງ/ຄ່າພາສີຖ້າມີ) ກ່ອນປ້ອນໃສ່.</p>
+            <form id="productForm" class="form-grid">
+              <input name="productId" type="hidden" />
+              <label>ຮູບສິນຄ້າ<input name="image" type="file" accept="image/*" /><span class="input-hint">ເລືອກຮູບຈາກເຄື່ອງ</span></label>
+              <label>ຊື່ສິນຄ້າ<input name="name" placeholder="ຕົວຢ່າງ: ເຄສ iPhone 15 Pro" required /></label>
+              <label>ໝວດສິນຄ້າ<select name="categoryId" id="productCategory" required></select></label>
+              <label>ຮູບແບບການຂາຍ<select name="saleMode" id="saleMode"><option value="onDemand">ສັ່ງຕາມອໍເດີ (ສະຕັອກ 0 ກໍຂາຍໄດ້)</option><option value="inStock">ສິນຄ້າພ້ອມສົ່ງ</option></select><span class="input-hint">ເລືອກແບບສັ່ງໃຫ້ ຖ້າຮ້ານບໍ່ໄດ້ເກັບສະຕັອກ</span></label>
+              <label>ຈຳນວນສະຕັອກ (ສຳລັບພ້ອມສົ່ງ)<input name="stock" type="number" min="0" step="1" value="0" required /></label>
+              <label class="span-2">ລາຍລະອຽດ<textarea name="description" rows="2" placeholder="ບອກຮຸ່ນ, ສີ, ວັດສະດຸ ຫຼື ລາຍລະອຽດອື່ນ..."></textarea></label>
+              <label class="span-2">ລິ້ງຮ້ານຕົ້ນທາງ / ເວັບທີ່ສັ່ງສິນຄ້າ<input name="supplierUrl" type="url" placeholder="https://..." /><span class="input-hint">ລິ້ງນີ້ເຫັນສະເພາະຜູ້ຈັດການ</span></label>
+              <label>ລາຄາຕົ້ນທຶນ / ຊິ້ນ (₭)<input id="costInput" name="cost" type="number" min="0" step="1000" placeholder="0" required /></label>
+              <label>ວິທີຕັ້ງລາຄາ<select id="priceMode" name="priceMode"><option value="markup">ເພີ່ມກຳໄລເປັນ %</option><option value="manual">ກຳນົດລາຄາຂາຍເອງ</option></select></label>
+              <label id="markupField">ກຳໄລ (%)<input id="markupInput" name="markup" type="number" min="0" step="1" value="20" /><span class="quick-markup"><button type="button" data-markup="10">10%</button><button type="button" data-markup="20">20%</button><button type="button" data-markup="30">30%</button></span></label>
+              <label id="sellPriceField" class="hidden">ລາຄາຂາຍ (₭)<input id="sellPriceInput" name="sellPrice" type="number" min="0" step="1000" placeholder="0" /></label>
+              <div class="price-preview"><span>ລາຄາຂາຍທີ່ໄດ້</span><strong id="calculatedPrice">0 ₭</strong><small id="profitPreview">ກຳໄລ 0 ₭ / ຊິ້ນ</small></div>
+              <div class="span-2 form-actions"><button id="cancelProductForm" class="secondary-button" type="button">ຍົກເລີກ</button><button class="primary-button" type="submit">ບັນທຶກສິນຄ້າ</button></div>
+            </form>
+          </div>
+          <div id="managerProducts" class="manager-products"></div>
+        </section>
+
+        <section class="manager-pane hidden" data-pane="categories">
+          <div class="pane-heading"><div><h2>ໝວດສິນຄ້າ</h2><p>ສ້າງໝວດໃຫ້ລູກຄ້າເລືອກເບິ່ງງ່າຍ</p></div></div>
+          <form id="categoryForm" class="inline-form"><label>ຊື່ໝວດ<input name="name" placeholder="ຕົວຢ່າງ: ເຄສ Samsung" required /></label><button class="primary-button" type="submit">+ ເພີ່ມໝວດ</button></form><div id="categoriesManagerList" class="category-manage-list"></div>
+        </section>
+
+        <section class="manager-pane hidden" data-pane="payment">
+          <div class="pane-heading"><div><h2>ຂໍ້ມູນຮັບເງິນ</h2><p>ຕັ້ງຄ່າ QR Code ສຳລັບລູກຄ້າທີ່ເລືອກໂອນເງິນ</p></div></div>
+          <form id="paymentForm" class="form-card payment-form"><label>ຊື່ບັນຊີ / ຊື່ທະນາຄານ<input name="accountName" placeholder="ຕົວຢ່າງ: BCEL - ນາງ ..." /></label><label>ເລກບັນຊີ / ລາຍລະອຽດ<input name="accountNumber" placeholder="020 / ເລກບັນຊີ" /></label><label>ຮູບ QR ສຳລັບຮັບເງິນ<input name="qrImage" type="file" accept="image/*" /><span class="input-hint">ອັບໂຫຼດ QR Code ຈິງຂອງຮ້ານ</span></label><div id="paymentPreview" class="payment-preview"></div><button class="primary-button" type="submit">ບັນທຶກຂໍ້ມູນຮັບເງິນ</button></form>
+        </section>
+
+        <section class="manager-pane hidden" data-pane="financial">
+          <div class="pane-heading"><div><h2>ສະຫຼຸບການເງິນ</h2><p>ນັບສະເພາະອໍເດີທີ່ສະຖານະ “ສຳເລັດ” ເທົ່ານັ້ນ</p></div></div>
+          <div id="financialGrid" class="financial-grid"></div>
+          <div class="finance-columns"><div class="panel"><h3>ບັນທຶກຄ່າໃຊ້ຈ່າຍເພີ່ມເຕີມ</h3><p class="muted small-copy">ເຊັ່ນ ຄ່າສົ່ງ, ຄ່າຫຸ້ມຫໍ່ ຫຼື ຄ່າໂຄສະນາ ເພື່ອໃຫ້ກຳໄລສຸດທິຖືກຕ້ອງ.</p><form id="expenseForm" class="expense-form"><label>ລາຍການ<input name="description" placeholder="ຕົວຢ່າງ: ຄ່າສົ່ງສິນຄ້າ" required /></label><label>ຈຳນວນເງິນ (₭)<input name="amount" type="number" min="1" step="1000" placeholder="0" required /></label><button class="primary-button" type="submit">+ ບັນທຶກຄ່າໃຊ້ຈ່າຍ</button></form></div><div class="panel"><h3>ຄ່າໃຊ້ຈ່າຍລ່າສຸດ</h3><div id="expenseList"></div></div></div>
+        </section>
+
+        <section class="manager-pane hidden" data-pane="profile">
+          <div class="pane-heading"><div><h2>ຂໍ້ມູນຮ້ານ & ໂປຣໄຟລ໌</h2><p>ປ່ຽນຊື່ຮ້ານ ຄຳອະທິບາຍ ແລະ ຮູບໂລໂກໄດ້</p></div></div>
+          <form id="shopProfileForm" class="form-card profile-form"><div id="profilePreview" class="profile-preview"></div><div class="form-grid"><label>ຊື່ຮ້ານ<input name="shopName" placeholder="ຊື່ຮ້ານ" required /></label><label>ຄຳອະທິບາຍສັ້ນ<input name="tagline" placeholder="ຕົວຢ່າງ: ອາໄຫຼ່ & ເຄສໂທລະສັບ" /></label><label>ຊື່ຜູ້ດູແລຮ້ານ<input name="ownerName" placeholder="ຊື່ຜູ້ຈັດການ" /></label><label>ເບີຕິດຕໍ່ຮ້ານ<input name="phone" placeholder="020 xxxx xxxx" /></label><label class="span-2">ໂລໂກ / ຮູບໂປຣໄຟລ໌ຮ້ານ<input name="logo" type="file" accept="image/*" /><span class="input-hint">ເລືອກຮູບເມື່ອຕ້ອງການປ່ຽນໂລໂກ</span></label></div><button class="primary-button" type="submit">ບັນທຶກຂໍ້ມູນຮ້ານ</button></form>
+        </section>
+
+        <section class="manager-pane hidden" data-pane="data">
+          <div class="pane-heading"><div><h2>ຖານຂໍ້ມູນ ແລະ ສຳຮອງຂໍ້ມູນ</h2><p>ຂໍ້ມູນທັງໝົດຢູ່ໃນ Firebase — ໃຊ້ຮ່ວມກັນທຸກເຄື່ອງ/ທຸກອຸປະກອນ</p></div></div>
+          <div class="panel data-panel"><h3>ສົ່ງອອກຂໍ້ມູນ</h3><p class="muted">ດາວໂຫຼດໄຟລ໌ JSON ເພື່ອເກັບສຳຮອງ.</p><button id="exportData" class="secondary-button" type="button">ດາວໂຫຼດຂໍ້ມູນ</button></div>
+          <div class="panel data-panel"><h3>ນຳເຂົ້າຂໍ້ມູນ</h3><p class="muted">ເລືອກຟາຍ JSON ທີ່ເຄີຍສົ່ງອອກໄວ້. ຈະຂຽນທັບຂໍ້ມູນໃນຖານຂໍ້ມູນອອນລາຍ (ທຸກຄົນຈະເຫັນທັນທີ).</p><input id="importData" type="file" accept="application/json,.json" /></div>
+          <div class="panel warning-panel"><h3>ຂໍ້ຄວນຮູ້</h3><p>ຂໍ້ມູນສິນຄ້າ, ອໍເດີ ແລະ ຮູບພາບຕອນນີ້ຖືກເກັບໄວ້ໃນ Firebase (Firestore + Storage) ບໍ່ແມ່ນໃນ browser ອີກຕໍ່ໄປ — ເປີດຈາກເຄື່ອງ/ອຸປະກອນໃດກໍເຫັນຂໍ້ມູນດຽວກັນ. ກະລຸນາເບິ່ງ README.txt ເພື່ອຕັ້ງຄ່າ Security Rules ໃຫ້ຄົບກ່ອນເປີດຮ້ານໃຫ້ລູກຄ້າຈິງ.</p></div>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <div id="toast" class="toast hidden" role="status"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
