@@ -72,8 +72,9 @@
           </div>
           <label class="search-box"><span>⌕</span><input id="customerSearch" type="search" placeholder="ຄົ້ນຫາຊື່ສິນຄ້າ, ຮຸ່ນ..." /></label>
         </div>
-        <div id="categoryTabs" class="category-tabs" aria-label="ໝວດສິນຄ້າ"></div>
-        <div id="subcategoryTabs" class="category-tabs subcategory-tabs hidden" aria-label="ຮຸ່ນ / ໝວດຍ່ອຍ"></div>
+        <nav id="catBreadcrumb" class="cat-breadcrumb hidden" aria-label="ເສັ້ນທາງໝວດ"></nav>
+        <div id="catGrid" class="cat-grid" aria-label="ໝວດສິນຄ້າ"></div>
+        <div id="catChips" class="category-tabs hidden" aria-label="ເລືອກຮຸ່ນ"></div>
         <div id="productGrid" class="product-grid"></div>
         <div id="emptyProducts" class="empty-state hidden">
           <span>⌕</span><h3>ບໍ່ພົບສິນຄ້າ</h3><p>ລອງຄົ້ນຫາດ້ວຍຄຳອື່ນ ຫຼື ເລືອກໝວດໃໝ່</p>
@@ -217,11 +218,18 @@
             <p class="cost-note">ລາຄາຕົ້ນທຶນ: ຜູ້ບໍລິຫານຕ້ອງຄຳນວນຕົ້ນທຶນຕໍ່ 1 ຊິ້ນ (ລວມຄ່າສົ່ງ/ຄ່າພາສີຖ້າມີ) ກ່ອນປ້ອນໃສ່.</p>
             <form id="productForm" class="form-grid">
               <input name="productId" type="hidden" />
-              <label>ຮູບສິນຄ້າ<input name="image" id="productImageInput" type="file" accept="image/*" /><span class="input-hint">ເລືອກຮູບຈາກເຄື່ອງ — ຈະສະແດງຕົວຢ່າງໃຫ້ເບິ່ງທັນທີ</span></label>
+              <label class="span-2">ຮູບສິນຄ້າ <span class="optional">(ເລືອກໄດ້ຫຼາຍຮູບພ້ອມກັນ)</span><input name="image" id="productImageInput" type="file" accept="image/*" multiple /><span class="input-hint">ກົດຄ້າງ Ctrl ຫຼື ລາກເລືອກ ເພື່ອເລືອກຫຼາຍຮູບພ້ອມກັນ</span></label>
               <div id="productImagePreview" class="image-preview" aria-live="polite"><span class="input-hint">ຍັງບໍ່ໄດ້ເລືອກຮູບ</span></div>
+              <fieldset id="multiModeBox" class="span-2 multi-mode hidden">
+                <legend>ເລືອກ <b id="multiCount">0</b> ຮູບ — ຈະບັນທຶກແບບໃດ?</legend>
+                <label class="mode-option"><input type="radio" name="multiMode" value="combine" checked />
+                  <span><b>ລວມເປັນສິນຄ້າດຽວ</b><small>ເຄສລຸ້ນດຽວກັນ ຕ່າງແຕ່ສີ — ລູກຄ້າເຫັນບລັອກດຽວ ກົດເຂົ້າໄປເລືອກສີ/ເບິ່ງທຸກຮູບໄດ້</small></span></label>
+                <label class="mode-option"><input type="radio" name="multiMode" value="split" />
+                  <span><b>ແຍກເປັນຫຼາຍສິນຄ້າ</b><small>ລາຍລະອຽດຕ່າງກັນ — ສ້າງໃຫ້ອັດຕະໂນມັດ 1 ຮູບ = 1 ສິນຄ້າ ລາຄາ ແລະ ຂໍ້ມູນອື່ນເໝືອນກັນໝົດ</small></span></label>
+              </fieldset>
+              <label class="span-2">ສີທີ່ມີ <span class="optional">(ບໍ່ຕ້ອງໃສ່ກໍໄດ້)</span><input name="colors" id="colorsInput" placeholder="ຕົວຢ່າງ: ດຳ, ຂາວ, ຟ້າ, ບົວ" /><span class="input-hint">ຂັ້ນດ້ວຍເຄື່ອງໝາຍຈຸດ (,) — ລູກຄ້າຈະເລືອກສີໄດ້ຕອນສັ່ງ</span></label>
               <label>ຊື່ສິນຄ້າ<input name="name" placeholder="ຕົວຢ່າງ: ເຄສ iPhone 15 Pro" required /></label>
               <label>ໝວດສິນຄ້າ<select name="categoryId" id="productCategory" required></select></label>
-              <label>ໝວດຍ່ອຍ / ຮຸ່ນ <span class="optional">(ບໍ່ຕ້ອງໃສ່ກໍໄດ້)</span><input name="subcategory" id="subcategoryInput" list="subcategoryOptions" placeholder="ຕົວຢ່າງ: iPhone 15 Pro Max" /><datalist id="subcategoryOptions"></datalist><span class="input-hint">ໃສ່ຮຸ່ນເພື່ອໃຫ້ລູກຄ້າກັ່ນຕອງເບິ່ງໄດ້ງ່າຍ</span></label>
               <label>ຮູບແບບການຂາຍ<select name="saleMode" id="saleMode"><option value="onDemand">ສັ່ງຕາມອໍເດີ (ສະຕັອກ 0 ກໍຂາຍໄດ້)</option><option value="inStock">ສິນຄ້າພ້ອມສົ່ງ</option></select><span class="input-hint">ເລືອກແບບສັ່ງໃຫ້ ຖ້າຮ້ານບໍ່ໄດ້ເກັບສະຕັອກ</span></label>
               <label>ຈຳນວນສະຕັອກ (ສຳລັບພ້ອມສົ່ງ)<input name="stock" type="number" min="0" step="1" value="0" required /></label>
               <label class="span-2">ລາຍລະອຽດ<textarea name="description" rows="2" placeholder="ບອກຮຸ່ນ, ສີ, ວັດສະດຸ ຫຼື ລາຍລະອຽດອື່ນ..."></textarea></label>
@@ -239,7 +247,15 @@
 
         <section class="manager-pane hidden" data-pane="categories">
           <div class="pane-heading"><div><h2>ໝວດສິນຄ້າ</h2><p>ສ້າງໝວດໃຫ້ລູກຄ້າເລືອກເບິ່ງງ່າຍ</p></div></div>
-          <form id="categoryForm" class="inline-form"><label>ຊື່ໝວດ<input name="name" placeholder="ຕົວຢ່າງ: ເຄສ Samsung" required /></label><button class="primary-button" type="submit">+ ເພີ່ມໝວດ</button></form><div id="categoriesManagerList" class="category-manage-list"></div>
+          <form id="categoryForm" class="inline-form">
+            <label>ເພີ່ມເຂົ້າໃນ<select name="parentId" id="categoryParent"></select></label>
+            <label>ຊື່ໝວດ / ຮຸ່ນ<input name="name" placeholder="ຕົວຢ່າງ: iPhone 18 Pro Max" required /></label>
+            <label>ໄອຄອນ <span class="optional">(ໝວດໃຫຍ່)</span><input name="icon" id="categoryIcon" maxlength="4" placeholder="🛡️" /></label>
+            <button class="primary-button" type="submit">+ ເພີ່ມ</button>
+          </form>
+          <p class="muted small-copy">ໝວດໃຫຍ່ສາມາດໃສ່ຮູບໄດ້ — ກົດ 🖼 ໃສ່ແຖວຂອງໝວດນັ້ນ. ທຸກຊັ້ນ ເພີ່ມ / ແກ້ຊື່ / ລຶບ ໄດ້ໝົດ.</p>
+          <input id="categoryImageInput" type="file" accept="image/*" class="hidden" />
+          <div id="categoryTree" class="category-tree"></div>
         </section>
 
         <section class="manager-pane hidden" data-pane="payment">

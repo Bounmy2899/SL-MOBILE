@@ -35,14 +35,15 @@ let data = {
 };
 
 let cart = readJson("phonemani-cart", []);
-let activeCategory = "all";
-let activeSubcategory = "all";
+let navL1 = null;   // ໝວດໃຫຍ່ທີ່ເລືອກຢູ່ (null = ສະແດງບັດໝວດໃຫຍ່)
+let navL2 = null;   // iPhone / Android
+let navL3 = null;   // ຮຸ່ນ
 let activeOrderFilter = "all";
 let restockFilter = "all";
 let manageCategoryFilter = "all";
 let editingProductId = null;
-let previewObjectUrl = null;
-let firstLoadDone = false;   // ຍັງບໍ່ທັນໄດ້ຂໍ້ມູນຈາກຖານຂໍ້ມູນເທື່ອ   // ຮູບຕົວຢ່າງໃນຟອມສິນຄ້າ (ຕ້ອງ revoke ຄືນ)
+let previewUrls = [];        // ຮູບຕົວຢ່າງໃນຟອມສິນຄ້າ (ຕ້ອງ revoke ຄືນ)
+let firstLoadDone = false;   // ຍັງບໍ່ທັນໄດ້ຂໍ້ມູນຈາກຖານຂໍ້ມູນເທື່ອ
 
 // ---------- 3) Helpers ----------
 const $ = (selector, scope = document) => scope.querySelector(selector);
@@ -52,8 +53,56 @@ function readJson(key, fallback) { try { return JSON.parse(localStorage.getItem(
 function saveCart() { localStorage.setItem("phonemani-cart", JSON.stringify(cart)); }
 const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
 const placeholder = '<div class="placeholder-art" aria-hidden="true"></div>';
-const imageMarkup = (product, className = "") => product.image ? `<img class="${className}" src="${product.image}" alt="${escapeHtml(product.name)}">` : placeholder;
-const categoryName = (id) => data.categories.find(category => category.id === id)?.name || "ບໍ່ມີໝວດ";
+const imageMarkup = (product, className = "") => {
+  const first = (Array.isArray(product?.images) && product.images.filter(Boolean)[0]) || product?.image;
+  return first ? `<img class="${className}" src="${escapeHtml(first)}" alt="${escapeHtml(product.name)}" loading="lazy">` : placeholder;
+};
+const catById = (id) => data.categories.find(category => String(category.id) === String(id));
+const categoryName = (id) => catById(id)?.name || "ບໍ່ມີໝວດ";
+const bySort = (a, b) => (a.sort ?? 0) - (b.sort ?? 0) || String(a.name).localeCompare(String(b.name), "lo");
+// ລູກໂດຍກົງຂອງໝວດໜຶ່ງ (parentId = null ຄືໝວດໃຫຍ່)
+function childrenOf(parentId) {
+  return data.categories
+    .filter(c => c && c.id != null &&                       // ແຖວທີ່ບໍ່ມີ id ຖືວ່າໃຊ້ບໍ່ໄດ້
+      (parentId == null ? (c.parentId == null) : String(c.parentId) === String(parentId)))
+    .sort(bySort);
+}
+// ໄອດີຂອງໝວດນີ້ ແລະ ລູກຫຼານທັງໝົດ (ໃຊ້ກັ່ນຕອງສິນຄ້າ)
+function descendantIds(id) {
+  if (id == null) return [];
+  const seen = new Set([String(id)]);                        // ກັນວົນຊ້ຳບໍ່ຮູ້ຈົບ
+  const walk = (pid) => childrenOf(pid).forEach(c => {
+    const key = String(c.id);
+    if (seen.has(key)) return;
+    seen.add(key); walk(c.id);
+  });
+  walk(id);
+  return [...seen];
+}
+// ເສັ້ນທາງຈາກໝວດໃຫຍ່ລົງມາ
+function categoryPath(id) {
+  const path = []; const seen = new Set(); let node = catById(id);
+  while (node && !seen.has(String(node.id))) {               // ກັນວົນຊ້ຳບໍ່ຮູ້ຈົບ
+    seen.add(String(node.id)); path.unshift(node);
+    node = node.parentId == null ? null : catById(node.parentId);
+  }
+  return path;
+}
+// ນັບສິນຄ້າໃນໝວດ (ລວມລູກຫຼານ)
+function productCountIn(id) {
+  if (id == null) return 0;
+  const ids = new Set(descendantIds(id));
+  return data.products.filter(pr => ids.has(String(pr.categoryId))).length;
+}
+// ຮູບຂອງສິນຄ້າ (ຮອງຮັບທັງແບບເກົ່າ image ແລະ ແບບໃໝ່ images[])
+function productImages(product) {
+  const list = Array.isArray(product?.images) ? product.images.filter(Boolean) : [];
+  if (list.length) return list;
+  return product?.image ? [product.image] : [];
+}
+function productColors(product) {
+  return Array.isArray(product?.colors) ? product.colors.filter(Boolean) : [];
+}
 const isOnDemand = (product) => product.saleMode === "onDemand";
 function isManager() { return !!managerUser; }
 // ປ້າຍເລກແດງ: ເຫັນສະເພາະຕອນມີຄ່າຫຼາຍກວ່າ 0
@@ -97,89 +146,167 @@ const stockText = (product) => isOnDemand(product)
   ? "ສັ່ງໃຫ້ຕາມອໍເດີ"
   : (product.stock > 0 ? `ພ້ອມສົ່ງ ${product.stock} ຊິ້ນ` : "ສິນຄ້າໝົດ — ສັ່ງໄດ້ ຮ້ານຈະສັ່ງໃຫ້");
 
+function catCard(cat) {
+  const count = productCountIn(cat.id);
+  const art = cat.image
+    ? `<img src="${escapeHtml(cat.image)}" alt="" loading="lazy">`
+    : `<span class="cat-emoji">${escapeHtml(cat.icon || "📦")}</span>`;
+  const kids = childrenOf(cat.id).length;
+  return `<button class="cat-card" type="button" data-cat-open="${cat.id}">
+    <span class="cat-art">${art}</span>
+    <span class="cat-name">${escapeHtml(cat.name)}</span>
+    <small>${count} ລາຍການ${kids ? ` · ${kids} ຮຸ່ນ` : ""}</small>
+  </button>`;
+}
+
 function renderCustomerShop() {
-  // ຖ້າກຳລັງສະແດງຂໍ້ຄວາມ "ໂຫລດບໍ່ໄດ້" ຢູ່ ຢ່າຂຽນທັບ
   if (loadErrorShown && !data.products.length) return;
   const query = $("#customerSearch").value.trim().toLowerCase();
-  $("#categoryTabs").innerHTML = [`<button class="${activeCategory === "all" ? "active" : ""}" data-category="all">ທັງໝົດ</button>`, ...data.categories.map(c => `<button class="${activeCategory === c.id ? "active" : ""}" data-category="${c.id}">${escapeHtml(c.name)}</button>`)].join("");
+  const grid = $("#catGrid"), chips = $("#catChips"), crumb = $("#catBreadcrumb");
 
-  // ແຖບໝວດຍ່ອຍ (ຮຸ່ນ) — ສະແດງສະເພາະຕອນເລືອກໝວດໃດໜຶ່ງ ແລະ ໝວດນັ້ນມີຮຸ່ນຍ່ອຍ
-  const inCategory = data.products.filter(product => activeCategory === "all" || String(product.categoryId) === String(activeCategory));
-  const subs = [...new Set(inCategory.map(product => product.subcategory?.trim()).filter(Boolean))].sort();
-  const subTabs = $("#subcategoryTabs");
-  if (subs.length) {
-    if (activeSubcategory !== "all" && !subs.includes(activeSubcategory)) activeSubcategory = "all";
-    subTabs.innerHTML = [`<button class="${activeSubcategory === "all" ? "active" : ""}" data-subcategory="all">ທຸກຮຸ່ນ</button>`,
-      ...subs.map(sub => `<button class="${activeSubcategory === sub ? "active" : ""}" data-subcategory="${escapeHtml(sub)}">${escapeHtml(sub)}</button>`)].join("");
-    subTabs.classList.remove("hidden");
-  } else { activeSubcategory = "all"; subTabs.innerHTML = ""; subTabs.classList.add("hidden"); }
+  // ຄົ້ນຫາ → ຂ້າມການນຳທາງ ຄົ້ນທົ່ວຮ້ານເລີຍ
+  const searching = query.length > 0;
 
-  const products = inCategory.filter(product => {
-    const matchesSub = activeSubcategory === "all" || (product.subcategory || "").trim() === activeSubcategory;
-    const haystack = `${product.name} ${product.description} ${product.subcategory || ""} ${categoryName(product.categoryId)}`.toLowerCase();
-    return matchesSub && haystack.includes(query);
+  // ---- ເສັ້ນທາງ (breadcrumb) ----
+  if (navL1 && !searching) {
+    const parts = [`<button type="button" data-cat-goto="root">ໜ້າຫຼັກຮ້ານ</button>`];
+    [navL1, navL2, navL3].filter(Boolean).forEach((id, i, arr) => {
+      const cat = catById(id); if (!cat) return;
+      parts.push(i === arr.length - 1
+        ? `<span aria-current="page">${escapeHtml(cat.name)}</span>`
+        : `<button type="button" data-cat-goto="${cat.id}">${escapeHtml(cat.name)}</button>`);
+    });
+    crumb.innerHTML = parts.join('<i aria-hidden="true">›</i>');
+    crumb.classList.remove("hidden");
+  } else { crumb.innerHTML = ""; crumb.classList.add("hidden"); }
+
+  // ---- ເລືອກວ່າຈະສະແດງບັດໝວດ ຫຼື ຊິບຮຸ່ນ ----
+  let showProducts = [];
+  grid.innerHTML = ""; grid.classList.add("hidden");
+  chips.innerHTML = ""; chips.classList.add("hidden");
+
+  if (searching) {
+    showProducts = data.products;
+  } else if (!navL1) {
+    // ຊັ້ນ 1 — ບັດໝວດໃຫຍ່ພ້ອມໄອຄອນ
+    const roots = childrenOf(null).filter(c => productCountIn(c.id) > 0 || childrenOf(c.id).length);
+    if (roots.length) { grid.innerHTML = roots.map(catCard).join(""); grid.classList.remove("hidden"); }
+    // ສິນຄ້າທີ່ບໍ່ໄດ້ຢູ່ໝວດໃດ ຫຼື ບໍ່ມີໝວດເລີຍ → ສະແດງທັງໝົດ
+    showProducts = roots.length ? data.products.filter(pr => !pr.categoryId || !catById(pr.categoryId)) : data.products;
+  } else if (!navL2) {
+    // ຊັ້ນ 2 — iPhone / Android
+    const kids = childrenOf(navL1);
+    if (kids.length) { grid.innerHTML = kids.map(catCard).join(""); grid.classList.remove("hidden"); }
+    const ids = new Set(descendantIds(navL1));
+    showProducts = kids.length
+      ? data.products.filter(pr => String(pr.categoryId) === String(navL1))
+      : data.products.filter(pr => ids.has(String(pr.categoryId)));
+  } else {
+    // ຊັ້ນ 3 — ຊິບຮຸ່ນ (ສະແດງສະເພາະຮຸ່ນທີ່ມີສິນຄ້າ)
+    const models = childrenOf(navL2).filter(c => productCountIn(c.id) > 0);
+    if (models.length) {
+      chips.innerHTML = [`<button data-cat-model="all" class="${!navL3 ? "active" : ""}">ທຸກຮຸ່ນ (${productCountIn(navL2)})</button>`,
+        ...models.map(m => `<button data-cat-model="${m.id}" class="${String(navL3) === String(m.id) ? "active" : ""}">${escapeHtml(m.name)} (${productCountIn(m.id)})</button>`)].join("");
+      chips.classList.remove("hidden");
+    }
+    const scope = navL3 || navL2;
+    const ids = new Set(descendantIds(scope));
+    showProducts = data.products.filter(pr => ids.has(String(pr.categoryId)));
+  }
+
+  // ---- ກັ່ນຕອງດ້ວຍຄຳຄົ້ນຫາ ----
+  const products = showProducts.filter(product => {
+    if (!query) return true;
+    const path = categoryPath(product.categoryId).map(c => c.name).join(" ");
+    return `${product.name} ${product.description} ${path}`.toLowerCase().includes(query);
   });
+
   $("#productGrid").innerHTML = products.map(product => {
-    const sub = product.subcategory ? ` · ${escapeHtml(product.subcategory)}` : "";
-    const qty = cart.find(line => String(line.productId) === String(product.id))?.quantity || 0;
+    const qty = cart.filter(line => String(line.productId) === String(product.id)).reduce((n, l) => n + l.quantity, 0);
+    const path = categoryPath(product.categoryId);
+    const label = path.length ? path.map(c => escapeHtml(c.name)).join(" · ") : "ບໍ່ມີໝວດ";
+    const imgs = productImages(product);
+    const colors = productColors(product);
     return `<article class="product-card">
       <button class="product-card-media" type="button" data-open-product="${product.id}" aria-label="ເບິ່ງລາຍລະອຽດ ${escapeHtml(product.name)}">
-        <div class="product-image">${imageMarkup(product)}</div><span class="view-hint">ກົດເບິ່ງລາຍລະອຽດ</span>
+        <div class="product-image">${imageMarkup(product)}</div>
+        ${imgs.length > 1 ? `<span class="img-count">🖼 ${imgs.length}</span>` : ""}
+        <span class="view-hint">ກົດເບິ່ງລາຍລະອຽດ</span>
       </button>
       <div class="product-body">
-        <p class="product-category">${escapeHtml(categoryName(product.categoryId))}${sub}</p>
+        <p class="product-category">${label}</p>
         <h3 class="product-name">${escapeHtml(product.name)}</h3>
         <p class="product-description">${escapeHtml(product.description || "ສິນຄ້າຄຸນນະພາບ ພ້ອມໃຫ້ເລືອກ")}</p>
+        ${colors.length ? `<div class="color-dots">${colors.slice(0,6).map(c => `<span title="${escapeHtml(c)}">${escapeHtml(c)}</span>`).join("")}${colors.length > 6 ? `<span>+${colors.length - 6}</span>` : ""}</div>` : ""}
         <div class="product-bottom"><div><strong class="product-price">${money(product.price)}</strong><span class="product-stock">${stockText(product)}</span></div></div>
-        <div class="card-qty">
-          <button type="button" data-cart-change="-1" data-product-id="${product.id}" aria-label="ຫຼຸດຈຳນວນ" ${qty ? "" : "disabled"}>−</button>
-          <span class="qty-value">${qty}</span>
-          <button type="button" data-add-product="${product.id}" aria-label="ເພີ່ມ ${escapeHtml(product.name)}">+</button>
-          ${qty ? `<span class="card-added">ເລືອກແລ້ວ ${qty} ຊິ້ນ</span>` : ""}
-        </div>
         <div class="card-actions">
-          <button class="buy-now" type="button" data-buy-now="${product.id}">ສັ່ງເລີຍ${qty ? ` (${qty} ຊິ້ນ)` : ""}</button>
+          <button class="buy-now" type="button" data-open-product="${product.id}">${colors.length ? "ເລືອກສີ & ສັ່ງ" : "ເບິ່ງ & ສັ່ງ"}${qty ? ` (${qty})` : ""}</button>
         </div>
       </div></article>`;
   }).join("");
-  // ຍັງໂຫລດຢູ່ → ສະແດງໂຄງຮ່າງກຳລັງໂຫລດ ແທນທີ່ຈະບອກວ່າ "ບໍ່ພົບສິນຄ້າ" (ຈະເບິ່ງຄືເວັບເພ)
+
   if (!firstLoadDone && !data.products.length) {
     $("#productGrid").innerHTML = Array.from({ length: 4 }, () =>
       `<article class="product-card skeleton"><div class="product-image"></div><div class="product-body"><span class="sk-line w60"></span><span class="sk-line w90"></span><span class="sk-line w40"></span></div></article>`).join("");
     $("#emptyProducts").classList.add("hidden");
     return;
   }
-  $("#emptyProducts").classList.toggle("hidden", products.length > 0);
+  const nothingAtAll = !products.length && grid.classList.contains("hidden") && chips.classList.contains("hidden");
+  $("#emptyProducts").classList.toggle("hidden", !nothingAtAll);
 }
 
 // ---------- ໜ້າລາຍລະອຽດສິນຄ້າ ----------
-function openProductDetail(productId) {
+let detailState = { productId: null, imageIndex: 0, color: "" };
+
+function openProductDetail(productId, keepState) {
   const product = productById(productId);
   if (!product) return;
-  const inCart = cart.find(line => String(line.productId) === String(product.id));
+  const imgs = productImages(product);
+  const colors = productColors(product);
+  if (!keepState || String(detailState.productId) !== String(productId)) {
+    detailState = { productId, imageIndex: 0, color: colors.length === 1 ? colors[0] : "" };
+  }
+  const idx = Math.min(detailState.imageIndex, Math.max(0, imgs.length - 1));
+  const main = imgs[idx];
+  const inCart = cart.filter(l => String(l.productId) === String(product.id));
+  const inCartQty = inCart.reduce((n, l) => n + l.quantity, 0);
+  const path = categoryPath(product.categoryId);
+
   $("#productDetailBody").innerHTML = `
-    <button class="product-detail-image" type="button" data-zoom-image="${escapeHtml(product.image || "")}" ${product.image ? "" : "disabled"}>
-      ${imageMarkup(product)}${product.image ? `<span class="zoom-hint">🔍 ກົດເບິ່ງຮູບເຕັມ</span>` : ""}
-    </button>
     <div>
-      <p class="product-category">${escapeHtml(categoryName(product.categoryId))}${product.subcategory ? ` · ${escapeHtml(product.subcategory)}` : ""}</p>
+      <button class="product-detail-image" type="button" data-zoom-image="${escapeHtml(main || "")}" ${main ? "" : "disabled"}>
+        ${main ? `<img src="${escapeHtml(main)}" alt="${escapeHtml(product.name)}">` : placeholder}
+        ${main ? `<span class="zoom-hint">🔍 ກົດເບິ່ງຮູບເຕັມ</span>` : ""}
+        ${imgs.length > 1 ? `<span class="img-pager">${idx + 1} / ${imgs.length}</span>` : ""}
+      </button>
+      ${imgs.length > 1 ? `<div class="thumb-strip">${imgs.map((src, i) =>
+        `<button type="button" class="thumb${i === idx ? " active" : ""}" data-pick-image="${i}" aria-label="ຮູບທີ ${i + 1}"><img src="${escapeHtml(src)}" alt="" loading="lazy"></button>`).join("")}</div>` : ""}
+    </div>
+    <div>
+      <p class="product-category">${path.length ? path.map(c => escapeHtml(c.name)).join(" · ") : "ບໍ່ມີໝວດ"}</p>
       <h2 id="productDetailName">${escapeHtml(product.name)}</h2>
       <strong class="detail-price">${money(product.price)}</strong>
       <span class="product-stock">${stockText(product)}</span>
       <p class="detail-desc">${escapeHtml(product.description || "ສິນຄ້າຄຸນນະພາບ ພ້ອມໃຫ້ເລືອກ")}</p>
+      ${colors.length ? `<div class="color-picker">
+        <p class="picker-label">ເລືອກສີ ${detailState.color ? `<b>· ${escapeHtml(detailState.color)}</b>` : `<em>(ຍັງບໍ່ໄດ້ເລືອກ)</em>`}</p>
+        <div class="color-options">${colors.map(c =>
+          `<button type="button" class="color-chip${detailState.color === c ? " active" : ""}" data-pick-color="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join("")}</div>
+      </div>` : ""}
       <div class="detail-facts">
-        <div><span>ໝວດສິນຄ້າ</span><b>${escapeHtml(categoryName(product.categoryId))}</b></div>
-        ${product.subcategory ? `<div><span>ຮຸ່ນ</span><b>${escapeHtml(product.subcategory)}</b></div>` : ""}
+        ${path.map(c => `<div><span>${escapeHtml(c.parentId == null ? "ໝວດ" : "ຮຸ່ນ / ປະເພດ")}</span><b>${escapeHtml(c.name)}</b></div>`).join("")}
         <div><span>ສະຖານະ</span><b>${escapeHtml(stockText(product))}</b></div>
-        ${inCart ? `<div><span>ໃນກະຕ່າຂອງທ່ານ</span><b>${inCart.quantity} ຊິ້ນ</b></div>` : ""}
+        ${inCartQty ? `<div><span>ໃນກະຕ່າຂອງທ່ານ</span><b>${inCartQty} ຊິ້ນ${inCart.filter(l=>l.color).length ? ` (${inCart.filter(l=>l.color).map(l=>escapeHtml(l.color)).join(", ")})` : ""}</b></div>` : ""}
       </div>
       <div class="detail-actions">
-        <button class="primary-button full" type="button" data-add-product="${product.id}">ເພີ່ມໃສ່ກະຕ່າ</button>
-        <button class="secondary-button modal-close" type="button">ເບິ່ງສິນຄ້າອື່ນ</button>
+        <button class="primary-button full" type="button" data-detail-add="${product.id}">ເພີ່ມໃສ່ກະຕ່າ</button>
+        <button class="secondary-button" type="button" data-detail-buy="${product.id}">ສັ່ງເລີຍ</button>
       </div>
+      <button class="text-button detail-back" type="button" data-close-modal>← ເບິ່ງສິນຄ້າອື່ນ</button>
     </div>`;
-  openLayer("#productModal");
+  if (!keepState) openLayer("#productModal");
 }
+
 function openImageViewer(src) {
   if (!src) return;
   $("#imageViewerImg").src = src;
@@ -192,9 +319,10 @@ function closeImageViewer() {
   document.body.style.overflow = "";
 }
 
+const cartKey = (productId, color) => `${productId}::${color || ""}`;
 function validCart() {
   cart = cart.filter(line => data.products.some(product => String(product.id) === String(line.productId)));
-  return cart.map(line => ({ ...line, product: data.products.find(product => String(product.id) === String(line.productId)) })).filter(line => line.product);
+  return cart.map(line => ({ ...line, color: line.color || "", product: productById(line.productId) })).filter(line => line.product);
 }
 function renderCart(skipShopRender) {
   const lines = validCart(); saveCart();
@@ -204,22 +332,28 @@ function renderCart(skipShopRender) {
   $("#cartCount").textContent = count;
   $("#cartTotal").textContent = money(total);
   $("#checkoutButton").disabled = !lines.length;
-  $("#cartItems").innerHTML = lines.length ? lines.map(({ product, quantity }) => `<div class="cart-line"><div class="cart-thumb">${imageMarkup(product)}</div><div><h4>${escapeHtml(product.name)}</h4><p>${money(product.price)}</p><div class="quantity-control"><button data-cart-change="-1" data-product-id="${product.id}">−</button><span>${quantity}</span><button data-cart-change="1" data-product-id="${product.id}">+</button></div></div><button class="remove-cart" data-cart-remove="${product.id}" aria-label="ລຶບ">×</button></div>`).join("") : `<div class="cart-empty"><p>ກະຕ່າຍັງຫວ່າງ</p><small>ເລືອກສິນຄ້າເພື່ອເລີ່ມສັ່ງຊື້</small></div>`;
+  $("#cartItems").innerHTML = lines.length ? lines.map(({ product, quantity, color }) => `<div class="cart-line"><div class="cart-thumb">${imageMarkup(product)}</div><div><h4>${escapeHtml(product.name)}</h4>${color ? `<p class="cart-color">ສີ: <b>${escapeHtml(color)}</b></p>` : ""}<p>${money(product.price)}</p><div class="quantity-control"><button data-cart-change="-1" data-product-id="${product.id}" data-color="${escapeHtml(color)}">−</button><span>${quantity}</span><button data-cart-change="1" data-product-id="${product.id}" data-color="${escapeHtml(color)}">+</button></div></div><button class="remove-cart" data-cart-remove="${product.id}" data-color="${escapeHtml(color)}" aria-label="ລຶບ">×</button></div>`).join("") : `<div class="cart-empty"><p>ກະຕ່າຍັງຫວ່າງ</p><small>ເລືອກສິນຄ້າເພື່ອເລີ່ມສັ່ງຊື້</small></div>`;
 }
 // ລູກຄ້າສັ່ງໄດ້ເຖິງແມ່ນສະຕັອກເປັນ 0 — ຮ້ານຈະໄປສັ່ງມາໃຫ້ (ອໍເດີຈະເຂົ້າ “ຕ້ອງສັ່ງສິນຄ້າ”)
-function addToCart(productId) {
+function addToCart(productId, color = "") {
   const product = productById(productId);
-  if (!product) return;
-  const inCart = cart.find(line => String(line.productId) === String(productId));
-  if (inCart) inCart.quantity += 1; else cart.push({ productId, quantity: 1 });
+  if (!product) return false;
+  const colors = productColors(product);
+  if (colors.length && !color) { toast("ກະລຸນາເລືອກສີກ່ອນ"); return false; }
+  const key = cartKey(productId, color);
+  const inCart = cart.find(line => cartKey(line.productId, line.color) === key);
+  if (inCart) inCart.quantity += 1; else cart.push({ productId, color, quantity: 1 });
   saveCart(); renderCart();
-  toast(product.stock > 0 ? "ເພີ່ມໃສ່ກະຕ່າແລ້ວ" : "ເພີ່ມແລ້ວ · ສິນຄ້ານີ້ຮ້ານຈະສັ່ງມາໃຫ້");
+  const suffix = color ? ` (ສີ${color})` : "";
+  toast(product.stock > 0 ? `ເພີ່ມໃສ່ກະຕ່າແລ້ວ${suffix}` : `ເພີ່ມແລ້ວ${suffix} · ຮ້ານຈະສັ່ງມາໃຫ້`);
+  return true;
 }
-function changeCart(productId, amount) {
-  const line = cart.find(item => String(item.productId) === String(productId));
+function changeCart(productId, amount, color = "") {
+  const key = cartKey(productId, color);
+  const line = cart.find(item => cartKey(item.productId, item.color) === key);
   if (!line) return;
   line.quantity += amount;
-  if (line.quantity <= 0) cart = cart.filter(item => String(item.productId) !== String(productId));
+  if (line.quantity <= 0) cart = cart.filter(item => cartKey(item.productId, item.color) !== key);
   saveCart(); renderCart();
 }
 
@@ -227,7 +361,7 @@ function openLayer(name) { $("#overlay").classList.remove("hidden"); if (name ==
 function closeLayers() { $("#overlay").classList.add("hidden"); $("#cartDrawer").classList.remove("open"); $("#cartDrawer").setAttribute("aria-hidden", "true"); $$(".modal").forEach(modal => modal.classList.add("hidden")); }
 function renderCheckout() {
   const lines = validCart(); const total = lines.reduce((sum, line) => sum + line.product.price * line.quantity, 0);
-  $("#checkoutItems").innerHTML = lines.map(line => `<div class="checkout-line"><span>${escapeHtml(line.product.name)} × ${line.quantity}</span><span>${money(line.product.price * line.quantity)}</span></div>`).join("");
+  $("#checkoutItems").innerHTML = lines.map(line => `<div class="checkout-line"><span>${escapeHtml(line.product.name)}${line.color ? ` · ສີ${escapeHtml(line.color)}` : ""} × ${line.quantity}</span><span>${money(line.product.price * line.quantity)}</span></div>`).join("");
   $("#checkoutTotal").textContent = money(total); renderPaymentDetails();
 }
 function renderPaymentDetails() {
@@ -361,7 +495,7 @@ function showManager() {
   closeLayers(); $(".app-shell").classList.add("hidden"); $("#managerView").classList.remove("hidden"); renderManager(); window.scrollTo({ top: 0, behavior: "instant" });
 }
 function showShop() { $("#managerView").classList.add("hidden"); $(".app-shell").classList.remove("hidden"); renderShopProfile(); renderCustomerShop(); renderCart(); }
-function renderManager() { renderShopProfile(); renderDashboard(); renderOrders(); renderRestock(); renderShipping(); renderManagerProducts(); renderCategoriesManager(); renderPaymentForm(); renderFinancials(); renderShopProfileForm(); renderProductCategories(); renderSubcategoryOptions(); }
+function renderManager() { renderShopProfile(); renderDashboard(); renderOrders(); renderRestock(); renderShipping(); renderManagerProducts(); renderCategoriesManager(); renderPaymentForm(); renderFinancials(); renderShopProfileForm(); renderProductCategories(); }
 function renderDashboard() {
   const activeOrders = data.orders.filter(order => !["cancelled", "complete"].includes(order.status));
   const pendingValue = activeOrders.reduce((sum, order) => sum + orderTotal(order), 0);
@@ -461,33 +595,48 @@ function renderOrders() {
   });
   $("#ordersList").innerHTML = orders.length ? orders.map(orderCard).join("") : `<div class="empty-state"><h3>ບໍ່ພົບອໍເດີ</h3><p>ລອງເລືອກສະຖານະ ຫຼື ຄົ້ນຫາໃໝ່</p></div>`;
 }
-function renderProductCategories() { $("#productCategory").innerHTML = data.categories.map(category => `<option value="${category.id}">${escapeHtml(category.name)}</option>`).join(""); }
+function renderProductCategories() {
+  const opts = [`<option value="">— ບໍ່ລະບຸໝວດ —</option>`];
+  childrenOf(null).forEach(l1 => {
+    opts.push(`<option value="${l1.id}">${escapeHtml(l1.icon || "")} ${escapeHtml(l1.name)}</option>`);
+    childrenOf(l1.id).forEach(l2 => {
+      opts.push(`<option value="${l2.id}">　└ ${escapeHtml(l2.name)} (ທົ່ວໄປ)</option>`);
+      childrenOf(l2.id).forEach(l3 =>
+        opts.push(`<option value="${l3.id}">　　└ ${escapeHtml(l2.name)} › ${escapeHtml(l3.name)}</option>`));
+    });
+  });
+  const sel = $("#productCategory"); const keep = sel.value;
+  sel.innerHTML = opts.join("");
+  if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+}
 function renderManagerProducts() {
   const query = ($("#manageProductSearch")?.value || "").trim().toLowerCase();
   const list = data.products.filter(product => {
-    const inCat = manageCategoryFilter === "all" || String(product.categoryId) === manageCategoryFilter;
-    const hay = `${product.name} ${product.subcategory || ""} ${categoryName(product.categoryId)}`.toLowerCase();
+    const inCat = manageCategoryFilter === "all" || new Set(descendantIds(manageCategoryFilter)).has(String(product.categoryId));
+    const hay = `${product.name} ${categoryPath(product.categoryId).map(c => c.name).join(" ")}`.toLowerCase();
     return inCat && hay.includes(query);
   });
 
   // ແຖບກັ່ນຕອງໝວດ (ພ້ອມຈຳນວນ)
   const filters = [`<button data-manage-cat="all" class="${manageCategoryFilter === "all" ? "active" : ""}">ທັງໝົດ (${data.products.length})</button>`,
-    ...data.categories.map(cat => {
-      const n = data.products.filter(pr => String(pr.categoryId) === String(cat.id)).length;
-      return `<button data-manage-cat="${cat.id}" class="${manageCategoryFilter === String(cat.id) ? "active" : ""}">${escapeHtml(cat.name)} (${n})</button>`;
+    ...childrenOf(null).map(cat => {
+      const n = productCountIn(cat.id);
+      return `<button data-manage-cat="${cat.id}" class="${manageCategoryFilter === String(cat.id) ? "active" : ""}">${escapeHtml(cat.icon || "")} ${escapeHtml(cat.name)} (${n})</button>`;
     })];
   $("#manageCategoryFilter").innerHTML = filters.join("");
   const totalStock = list.reduce((sum, pr) => sum + Number(pr.stock || 0), 0);
   $("#manageCount").innerHTML = `ສະແດງ <b>${list.length}</b> ລາຍການ · ສະຕັອກລວມ <b>${totalStock}</b> ຊິ້ນ`;
 
   $("#managerProducts").innerHTML = list.length ? list.map(product => {
-    const sub = product.subcategory ? ` · ${escapeHtml(product.subcategory)}` : "";
+    const path = categoryPath(product.categoryId);
+    const label = path.length ? path.map(c => escapeHtml(c.name)).join(" › ") : "ບໍ່ມີໝວດ";
+    const imgs = productImages(product); const cols = productColors(product);
     const mode = isOnDemand(product) ? "ສັ່ງຕາມອໍເດີ" : "ພ້ອມສົ່ງ";
     return `<article class="manager-product-row">
       <div class="manager-product-thumb">${imageMarkup(product)}</div>
       <div>
         <h3>${escapeHtml(product.name)}</h3>
-        <p>${escapeHtml(categoryName(product.categoryId))}${sub} · ${mode}</p>
+        <p>${label} · ${mode}${imgs.length > 1 ? ` · 🖼 ${imgs.length} ຮູບ` : ""}${cols.length ? ` · ສີ: ${cols.map(escapeHtml).join(", ")}` : ""}</p>
         <div class="stock-control">
           <button type="button" data-stock-minus="${product.id}" aria-label="ລົບສະຕັອກ">−</button>
           <input type="number" min="0" step="1" value="${Number(product.stock || 0)}" data-stock-input="${product.id}" aria-label="ຈຳນວນສະຕັອກ">
@@ -612,13 +761,54 @@ function renderShipping() {
   setBadge("#shippingBadge", orders.filter(o => o.status === "preparing").length);
 }
 function renderCategoriesManager() {
-  $("#categoriesManagerList").innerHTML = data.categories.length ? data.categories.map(category => {
-    const n = data.products.filter(pr => String(pr.categoryId) === String(category.id)).length;
-    return `<div class="category-chip">${escapeHtml(category.name)} <small class="muted">(${n})</small>
-      <button data-rename-category="${category.id}" aria-label="ແກ້ໄຂຊື່ໝວດ" title="ແກ້ໄຂຊື່">✎</button>
-      <button class="danger" data-delete-category="${category.id}" aria-label="ລຶບໝວດ" title="ລຶບ">×</button></div>`;
-  }).join("") : `<p class="muted small-copy">ຍັງບໍ່ມີໝວດສິນຄ້າ — ເພີ່ມໝວດທຳອິດຂ້າງເທິງ</p>`;
+  // ຊ່ອງເລືອກ "ເພີ່ມເຂົ້າໃນ"
+  const options = [`<option value="">— ສ້າງເປັນໝວດໃຫຍ່ໃໝ່ —</option>`];
+  childrenOf(null).forEach(l1 => {
+    options.push(`<option value="${l1.id}">${escapeHtml(l1.icon || "")} ${escapeHtml(l1.name)}</option>`);
+    childrenOf(l1.id).forEach(l2 => options.push(`<option value="${l2.id}">　└ ${escapeHtml(l1.name)} › ${escapeHtml(l2.name)}</option>`));
+  });
+  const parentSelect = $("#categoryParent");
+  const keep = parentSelect.value;
+  parentSelect.innerHTML = options.join("");
+  if ([...parentSelect.options].some(o => o.value === keep)) parentSelect.value = keep;
+
+  // ຕົ້ນໄມ້ໝວດ
+  const roots = childrenOf(null);
+  $("#categoryTree").innerHTML = roots.length ? roots.map(l1 => {
+    const kids = childrenOf(l1.id);
+    return `<details class="cat-node level-1" open>
+      <summary>
+        <span class="node-art">${l1.image ? `<img src="${escapeHtml(l1.image)}" alt="">` : escapeHtml(l1.icon || "📦")}</span>
+        <b>${escapeHtml(l1.name)}</b>
+        <small>${productCountIn(l1.id)} ລາຍການ · ${kids.length} ກຸ່ມ</small>
+        <span class="node-tools">
+          <button type="button" data-cat-image="${l1.id}" title="ໃສ່ຮູບໝວດ">🖼</button>
+          <button type="button" data-cat-rename="${l1.id}" title="ແກ້ໄຂຊື່">✎</button>
+          <button type="button" class="danger" data-cat-delete="${l1.id}" title="ລຶບ">×</button>
+        </span>
+      </summary>
+      ${kids.map(l2 => {
+        const models = childrenOf(l2.id);
+        return `<details class="cat-node level-2">
+          <summary>
+            <b>${escapeHtml(l2.name)}</b>
+            <small>${productCountIn(l2.id)} ລາຍການ · ${models.length} ຮຸ່ນ</small>
+            <span class="node-tools">
+              <button type="button" data-cat-rename="${l2.id}" title="ແກ້ໄຂຊື່">✎</button>
+              <button type="button" class="danger" data-cat-delete="${l2.id}" title="ລຶບ">×</button>
+            </span>
+          </summary>
+          <div class="model-chips">${models.length ? models.map(m =>
+            `<span class="category-chip${productCountIn(m.id) ? " has-items" : ""}">${escapeHtml(m.name)}<small class="muted">(${productCountIn(m.id)})</small>
+              <button type="button" data-cat-rename="${m.id}" title="ແກ້ໄຂຊື່">✎</button>
+              <button type="button" class="danger" data-cat-delete="${m.id}" title="ລຶບ">×</button></span>`).join("")
+            : `<p class="muted small-copy">ຍັງບໍ່ມີຮຸ່ນ — ເພີ່ມຈາກຟອມຂ້າງເທິງ</p>`}</div>
+        </details>`;
+      }).join("") || `<p class="muted small-copy" style="padding:8px 12px">ຍັງບໍ່ມີກຸ່ມຍ່ອຍ</p>`}
+    </details>`;
+  }).join("") : `<p class="muted small-copy">ຍັງບໍ່ມີໝວດສິນຄ້າ — ເພີ່ມໝວດໃຫຍ່ທຳອິດຈາກຟອມຂ້າງເທິງ</p>`;
 }
+
 function renderPaymentForm() { const form = $("#paymentForm"); form.accountName.value = data.payment.accountName || ""; form.accountNumber.value = data.payment.accountNumber || ""; $("#paymentPreview").innerHTML = data.payment.qrImage ? `<img src="${data.payment.qrImage}" alt="QR ປະຈຸບບັນ">` : `<span class="input-hint">ຍັງບໍ່ໄດ້ອັບໂຫຼດ QR Code</span>`; }
 function renderShopProfile() {
   const profile = data.profile;
@@ -638,22 +828,22 @@ function switchManagerTab(tab) { $$(".manager-tab").forEach(button => button.cla
 function setPriceMode() { const mode = $("#priceMode").value; $("#markupField").classList.toggle("hidden", mode !== "markup"); $("#sellPriceField").classList.toggle("hidden", mode !== "manual"); updatePricePreview(); }
 function updatePricePreview() { const cost = Number($("#costInput").value || 0); const mode = $("#priceMode").value; const markup = Number($("#markupInput").value || 0); const rawPrice = mode === "markup" ? Math.round(cost * (1 + markup / 100) / 1000) * 1000 : Number($("#sellPriceInput").value || 0); const price = Math.max(0, rawPrice); $("#calculatedPrice").textContent = money(price); const profit = price - cost; $("#profitPreview").textContent = `ກຳໄລ ${money(profit)} / ຊິ້ນ${cost ? ` (${Math.round((profit / cost) * 100)}%)` : ""}`; return price; }
 function setImagePreview(html) {
-  if (previewObjectUrl) { URL.revokeObjectURL(previewObjectUrl); previewObjectUrl = null; }
+  previewUrls.forEach(u => URL.revokeObjectURL(u)); previewUrls = [];
   $("#productImagePreview").innerHTML = html;
-}
-function renderSubcategoryOptions() {
-  const subs = [...new Set(data.products.map(product => product.subcategory?.trim()).filter(Boolean))].sort();
-  $("#subcategoryOptions").innerHTML = subs.map(sub => `<option value="${escapeHtml(sub)}"></option>`).join("");
+  $("#multiModeBox")?.classList.add("hidden");
 }
 function openProductForm(product = null) {
-  editingProductId = product?.id ?? null; const form = $("#productForm"); form.reset(); renderProductCategories(); renderSubcategoryOptions();
+  editingProductId = product?.id ?? null; const form = $("#productForm"); form.reset(); renderProductCategories();
   $("#productFormTitle").textContent = product ? "ແກ້ໄຂສິນຄ້າ" : "ເພີ່ມສິນຄ້າໃໝ່";
   if (product) {
     form.productId.value = product.id; form.name.value = product.name; form.categoryId.value = product.categoryId;
-    form.subcategory.value = product.subcategory || "";
     form.saleMode.value = product.saleMode || "inStock"; form.stock.value = product.stock; form.description.value = product.description || "";
     form.supplierUrl.value = product.supplierUrl || ""; form.cost.value = product.cost; form.priceMode.value = "manual"; form.sellPrice.value = product.price;
-    setImagePreview(product.image ? `<img src="${escapeHtml(product.image)}" alt="ຮູບປະຈຸບັນ">` : `<span class="input-hint">ສິນຄ້ານີ້ຍັງບໍ່ມີຮູບ</span>`);
+    form.colors.value = productColors(product).join(", ");
+    const existing = productImages(product);
+    setImagePreview(existing.length
+      ? `<div class="preview-strip">${existing.map((u, i) => `<figure><img src="${escapeHtml(u)}" alt=""><figcaption>${i + 1}</figcaption></figure>`).join("")}</div>`
+      : `<span class="input-hint">ສິນຄ້ານີ້ຍັງບໍ່ມີຮູບ</span>`);
   } else {
     form.saleMode.value = "onDemand"; form.stock.value = 0; form.priceMode.value = "markup"; form.markup.value = 20;
     setImagePreview(`<span class="input-hint">ຍັງບໍ່ໄດ້ເລືອກຮູບ</span>`);
@@ -716,7 +906,7 @@ async function refreshSettings() {
 }
 function renderAll() {
   renderCustomerShop(); renderCart();
-  renderDashboard(); renderOrders(); renderRestock(); renderShipping(); renderManagerProducts(); renderCategoriesManager(); renderProductCategories(); renderSubcategoryOptions(); renderFinancials();
+  renderDashboard(); renderOrders(); renderRestock(); renderShipping(); renderManagerProducts(); renderCategoriesManager(); renderProductCategories(); renderFinancials();
 }
 // ກວດເບິ່ງວ່າຕິດຕໍ່ຖານຂໍ້ມູນໄດ້ບໍ ຕອນເປີດເວັບ — ຖ້າບໍ່ໄດ້ ໃຫ້ບອກຜູ້ໃຊ້ທັນທີ
 async function checkConnection() {
@@ -750,7 +940,7 @@ async function createOrderFromForm(form) {
     customer: { name: values.get("customerName"), phone: values.get("phone"), address: values.get("address"), transportBranch: values.get("transportBranch"), deliveryMethod: values.get("deliveryMethod"), note: values.get("note") },
     paymentMethod: values.get("paymentMethod"),
     receipt,
-    items: lines.map(({ product, quantity }) => ({ productId: product.id, name: product.name, price: product.price, cost: product.cost, quantity, supplierUrl: product.supplierUrl || "" }))
+    items: lines.map(({ product, quantity, color }) => ({ productId: product.id, name: product.name, color: color || "", price: product.price, cost: product.cost, quantity, supplierUrl: product.supplierUrl || "" }))
   };
   const { error } = await supabase.from("orders").insert(order);
   if (error) throw error;
@@ -776,21 +966,6 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   $("#customerSearch").addEventListener("input", renderCustomerShop);
-  $("#categoryTabs").addEventListener("click", event => { const button = event.target.closest("button[data-category]"); if (!button) return; activeCategory = button.dataset.category === "all" ? "all" : Number(button.dataset.category) || button.dataset.category; activeSubcategory = "all"; renderCustomerShop(); });
-  $("#subcategoryTabs").addEventListener("click", event => { const button = event.target.closest("button[data-subcategory]"); if (!button) return; activeSubcategory = button.dataset.subcategory; renderCustomerShop(); });
-  $("#productGrid").addEventListener("click", event => {
-    const open = event.target.closest("[data-open-product]");
-    const add = event.target.closest("[data-add-product]");
-    if (add) return addToCart(add.dataset.addProduct);
-    if (open) openProductDetail(open.dataset.openProduct);
-  });
-  // ໜ້າລາຍລະອຽດສິນຄ້າ + ເບິ່ງຮູບເຕັມຈໍ
-  $("#productDetailBody").addEventListener("click", event => {
-    const add = event.target.closest("[data-add-product]");
-    const zoom = event.target.closest("[data-zoom-image]");
-    if (add) { addToCart(add.dataset.addProduct); openProductDetail(add.dataset.addProduct); return; }
-    if (zoom) openImageViewer(zoom.dataset.zoomImage);
-  });
   $(".image-viewer-close").addEventListener("click", closeImageViewer);
   $("#imageViewer").addEventListener("click", event => { if (event.target.id === "imageViewer") closeImageViewer(); });
   document.addEventListener("keydown", event => {
@@ -806,7 +981,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const modal = event.target.closest(".modal");
     if (modal && event.target === modal) closeLayers();
   });
-  $("#cartItems").addEventListener("click", event => { const remove = event.target.closest("[data-cart-remove]"); const change = event.target.closest("[data-cart-change]"); if (remove) { cart = cart.filter(line => String(line.productId) !== remove.dataset.cartRemove); saveCart(); renderCart(); } if (change) changeCart(change.dataset.productId, Number(change.dataset.cartChange)); });
+  $("#cartItems").addEventListener("click", event => { const remove = event.target.closest("[data-cart-remove]"); const change = event.target.closest("[data-cart-change]"); if (remove) { const key = cartKey(remove.dataset.cartRemove, remove.dataset.color || ""); cart = cart.filter(line => cartKey(line.productId, line.color) !== key); saveCart(); renderCart(); }
+    if (change) changeCart(change.dataset.productId, Number(change.dataset.cartChange), change.dataset.color || ""); });
   $("#checkoutButton").addEventListener("click", () => { if (!cart.length) return; closeLayers(); renderCheckout(); $("#checkoutModal").classList.remove("hidden"); });
   $$("input[name=paymentMethod]").forEach(input => input.addEventListener("change", toggleTransferFields));
   $("#checkoutForm").addEventListener("submit", event => { event.preventDefault(); const button = event.currentTarget.querySelector("button[type=submit]"); button.disabled = true; createOrderFromForm(event.currentTarget).catch(err => { console.error(err); toast("ສັ່ງຊື້ບໍ່ສຳເລັດ ລອງໃໝ່ພາຍຫຼັງ"); }).finally(() => { button.disabled = false; }); });
@@ -898,26 +1074,73 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#openProductForm").addEventListener("click", () => openProductForm()); $("#closeProductForm").addEventListener("click", closeProductForm); $("#cancelProductForm").addEventListener("click", closeProductForm); $("#priceMode").addEventListener("change", setPriceMode); ["#costInput", "#markupInput", "#sellPriceInput"].forEach(id => $(id).addEventListener("input", updatePricePreview));
   $$("[data-markup]").forEach(button => button.addEventListener("click", () => { $("#markupInput").value = button.dataset.markup; updatePricePreview(); }));
   $("#productForm").addEventListener("submit", async event => {
-    event.preventDefault(); const form = event.currentTarget; const fd = new FormData(form);
-    const old = editingProductId != null ? data.products.find(product => String(product.id) === String(editingProductId)) : null;
-    const imageFile = form.image.files[0];
-    const submitButton = form.querySelector("button[type=submit]"); submitButton.disabled = true;
+    event.preventDefault();
+    const form = event.currentTarget, fd = new FormData(form);
+    const old = editingProductId != null ? productById(editingProductId) : null;
+    const files = [...$("#productImageInput").files];
+    const mode = form.multiMode ? (form.multiMode.value || "combine") : "combine";
+    const submitButton = form.querySelector("button[type=submit]");
+    const originalLabel = submitButton.textContent;
+    submitButton.disabled = true;
+
     try {
-      const image = imageFile ? await uploadImage(imageFile, "products") : (old?.image || "");
       const price = updatePricePreview();
-      const product = { name: fd.get("name").trim(), categoryId: Number(fd.get("categoryId")), subcategory: (fd.get("subcategory") || "").trim(), saleMode: fd.get("saleMode"), description: fd.get("description").trim(), cost: Number(fd.get("cost")), price, stock: Number(fd.get("stock")), supplierUrl: fd.get("supplierUrl").trim(), image };
-      const { error } = old ? await supabase.from("products").update(product).eq("id", old.id) : await supabase.from("products").insert(product);
-      if (error) throw error;
-      closeProductForm(); toast(old ? "ແກ້ໄຂສິນຄ້າແລ້ວ" : "ເພີ່ມສິນຄ້າແລ້ວ");
-    } catch (err) { console.error(err); toast("ບັນທຶກສິນຄ້າບໍ່ສຳເລັດ"); } finally { submitButton.disabled = false; }
+      const colors = (fd.get("colors") || "").split(",").map(c => c.trim()).filter(Boolean);
+      const base = {
+        name: fd.get("name").trim(),
+        categoryId: Number(fd.get("categoryId")) || null,
+        saleMode: fd.get("saleMode"),
+        description: fd.get("description").trim(),
+        cost: Number(fd.get("cost")), price,
+        stock: Number(fd.get("stock")),
+        supplierUrl: fd.get("supplierUrl").trim(),
+        colors
+      };
+
+      // ອັບໂຫລດຮູບທັງໝົດ (ບອກຄວາມຄືບໜ້າໃຫ້ຮູ້)
+      const urls = [];
+      for (let i = 0; i < files.length; i++) {
+        submitButton.textContent = `ກຳລັງອັບໂຫລດຮູບ ${i + 1}/${files.length}...`;
+        urls.push(await uploadImage(files[i], "products"));
+      }
+      submitButton.textContent = "ກຳລັງບັນທຶກ...";
+
+      if (old) {
+        // ແກ້ໄຂ: ຮູບໃໝ່ທັບຮູບເກົ່າ ຖ້າມີການເລືອກ
+        const images = urls.length ? urls : productImages(old);
+        const { error } = await supabase.from("products").update({ ...base, images, image: images[0] || "" }).eq("id", old.id);
+        if (error) throw error;
+        toast("ແກ້ໄຂສິນຄ້າແລ້ວ");
+      } else if (files.length > 1 && mode === "split") {
+        // ແຍກ: 1 ຮູບ = 1 ສິນຄ້າ ຂໍ້ມູນອື່ນເໝືອນກັນໝົດ
+        const rows = urls.map((url, i) => ({ ...base, name: `${base.name} #${i + 1}`, images: [url], image: url }));
+        const { error } = await supabase.from("products").insert(rows);
+        if (error) throw error;
+        toast(`ສ້າງ ${rows.length} ສິນຄ້າແຍກກັນແລ້ວ (ລາຄາ ແລະ ຂໍ້ມູນເໝືອນກັນໝົດ)`);
+      } else {
+        // ລວມ: ສິນຄ້າດຽວ ຫຼາຍຮູບ
+        const { error } = await supabase.from("products").insert({ ...base, images: urls, image: urls[0] || "" });
+        if (error) throw error;
+        toast(urls.length > 1 ? `ເພີ່ມສິນຄ້າແລ້ວ (${urls.length} ຮູບໃນບລັອກດຽວ)` : "ເພີ່ມສິນຄ້າແລ້ວ");
+      }
+      await refreshProducts();
+      closeProductForm();
+    } catch (err) {
+      console.error(err); toast(`ບັນທຶກສິນຄ້າບໍ່ສຳເລັດ: ${err.message || err}`);
+    } finally { submitButton.disabled = false; submitButton.textContent = originalLabel; }
   });
+
   // ຮູບຕົວຢ່າງ ພໍເລືອກໄຟລ໌ຮູບສິນຄ້າ
   $("#productImageInput").addEventListener("change", event => {
-    const file = event.target.files[0];
-    if (!file) { setImagePreview(`<span class="input-hint">ຍັງບໍ່ໄດ້ເລືອກຮູບ</span>`); return; }
-    if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
-    previewObjectUrl = URL.createObjectURL(file);
-    $("#productImagePreview").innerHTML = `<img src="${previewObjectUrl}" alt="ຕົວຢ່າງຮູບສິນຄ້າ">`;
+    const files = [...event.target.files];
+    previewUrls.forEach(u => URL.revokeObjectURL(u)); previewUrls = [];
+    const box = $("#productImagePreview"), modeBox = $("#multiModeBox");
+    if (!files.length) { box.innerHTML = `<span class="input-hint">ຍັງບໍ່ໄດ້ເລືອກຮູບ</span>`; modeBox.classList.add("hidden"); return; }
+    previewUrls = files.map(f => URL.createObjectURL(f));
+    box.innerHTML = `<div class="preview-strip">${previewUrls.map((u, i) =>
+      `<figure><img src="${u}" alt="ຮູບທີ ${i + 1}"><figcaption>${i + 1}</figcaption></figure>`).join("")}</div>`;
+    $("#multiCount").textContent = files.length;
+    modeBox.classList.toggle("hidden", files.length < 2);
   });
   // ປຸ່ມເພີ່ມ / ລົບ ສະຕັອກ
   $("#managerProducts").addEventListener("click", event => {
@@ -948,16 +1171,20 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   $("#categoryForm").addEventListener("submit", async event => {
-    event.preventDefault(); const name = new FormData(event.currentTarget).get("name").trim(); if (!name) return;
-    if (data.categories.some(category => category.name.toLowerCase() === name.toLowerCase())) return toast("ມີໝວດນີ້ຢູ່ແລ້ວ");
-    const { error } = await supabase.from("categories").insert({ name }); if (error) return toast("ເພີ່ມໝວດບໍ່ສຳເລັດ");
-    event.currentTarget.reset(); toast("ເພີ່ມໝວດແລ້ວ");
-  });
-  $("#categoriesManagerList").addEventListener("click", event => {
-    const button = event.target.closest("[data-delete-category]"); if (!button) return;
-    const used = data.products.some(product => String(product.categoryId) === button.dataset.deleteCategory);
-    if (used) return toast("ລຶບໝວດນີ້ບໍ່ໄດ້: ຍັງມີສິນຄ້າຢູ່");
-    supabase.from("categories").delete().eq("id", button.dataset.deleteCategory);
+    event.preventDefault();
+    const form = event.currentTarget, fd = new FormData(form);
+    const name = (fd.get("name") || "").trim();
+    const parentId = fd.get("parentId") ? Number(fd.get("parentId")) : null;
+    const icon = (fd.get("icon") || "").trim();
+    if (!name) return;
+    const siblings = childrenOf(parentId);
+    if (siblings.some(c => c.name.toLowerCase() === name.toLowerCase())) return toast("ມີຊື່ນີ້ຢູ່ໃນລະດັບນີ້ແລ້ວ");
+    const row = { name, parentId, icon, sort: (siblings.length + 1) * 10 };
+    const { error } = await supabase.from("categories").insert(row);
+    if (error) { console.error(error); return toast(`ເພີ່ມບໍ່ສຳເລັດ: ${error.message}`); }
+    form.name.value = ""; form.icon.value = "";
+    await refreshCategories();
+    toast(parentId ? "ເພີ່ມຮຸ່ນ / ກຸ່ມຍ່ອຍແລ້ວ" : "ເພີ່ມໝວດໃຫຍ່ແລ້ວ");
   });
   $("#paymentForm").addEventListener("submit", async event => {
     event.preventDefault(); const form = event.currentTarget; const fd = new FormData(form);
@@ -989,16 +1216,6 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (err) { console.error(err); toast("ບັນທຶກບໍ່ສຳເລັດ"); } finally { submitButton.disabled = false; }
   });
 
-  // ---- ສັ່ງເລີຍຈາກໜ້າຮ້ານ (ບໍ່ຕ້ອງເປີດກະຕ່າ) ----
-  $("#productGrid").addEventListener("click", event => {
-    const buy = event.target.closest("[data-buy-now]");
-    const minus = event.target.closest("[data-cart-change]");
-    if (minus) { changeCart(minus.dataset.productId, Number(minus.dataset.cartChange)); return; }
-    if (!buy) return;
-    const id = buy.dataset.buyNow;
-    if (!cart.some(line => String(line.productId) === String(id))) addToCart(id);
-    renderCheckout(); closeLayers(); $("#checkoutModal").classList.remove("hidden"); $("#overlay").classList.remove("hidden");
-  });
 
   // ---- ກັ່ນຕອງໜ້າ “ຕ້ອງສັ່ງສິນຄ້າ” ----
   $("#restockFilters").addEventListener("click", event => {
@@ -1036,18 +1253,97 @@ document.addEventListener("DOMContentLoaded", () => {
     finally { button.disabled = false; }
   });
 
-  // ---- ແກ້ໄຂຊື່ໝວດສິນຄ້າ ----
-  $("#categoriesManagerList").addEventListener("click", async event => {
-    const rename = event.target.closest("[data-rename-category]"); if (!rename) return;
-    const category = data.categories.find(c => String(c.id) === rename.dataset.renameCategory); if (!category) return;
-    const name = prompt("ແກ້ໄຂຊື່ໝວດສິນຄ້າ:", category.name);
-    if (name === null) return;
-    const clean = name.trim();
-    if (!clean) return toast("ຊື່ໝວດຫວ່າງບໍ່ໄດ້");
-    if (data.categories.some(c => String(c.id) !== String(category.id) && c.name.toLowerCase() === clean.toLowerCase())) return toast("ມີໝວດຊື່ນີ້ຢູ່ແລ້ວ");
-    const { error } = await supabase.from("categories").update({ name: clean }).eq("id", category.id);
-    if (error) { console.error(error); return toast("ແກ້ໄຂບໍ່ສຳເລັດ"); }
-    await refreshCategories(); toast("ແກ້ໄຂຊື່ໝວດແລ້ວ");
+
+  // ---- ນຳທາງໝວດ 3 ຊັ້ນ (ໜ້າຮ້ານ) ----
+  $("#catGrid").addEventListener("click", event => {
+    const card = event.target.closest("[data-cat-open]"); if (!card) return;
+    const id = card.dataset.catOpen;
+    if (!navL1) { navL1 = id; navL2 = null; navL3 = null; }
+    else if (!navL2) { navL2 = id; navL3 = null; }
+    renderCustomerShop();
+    $("#products").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  $("#catBreadcrumb").addEventListener("click", event => {
+    const button = event.target.closest("[data-cat-goto]"); if (!button) return;
+    const target = button.dataset.catGoto;
+    if (target === "root") { navL1 = navL2 = navL3 = null; }
+    else if (String(target) === String(navL1)) { navL2 = navL3 = null; }
+    else if (String(target) === String(navL2)) { navL3 = null; }
+    renderCustomerShop();
+  });
+  $("#catChips").addEventListener("click", event => {
+    const button = event.target.closest("[data-cat-model]"); if (!button) return;
+    navL3 = button.dataset.catModel === "all" ? null : button.dataset.catModel;
+    renderCustomerShop();
+  });
+
+  // ---- ບັດສິນຄ້າ ແລະ ໜ້າລາຍລະອຽດ ----
+  $("#productGrid").addEventListener("click", event => {
+    const open = event.target.closest("[data-open-product]");
+    if (open) openProductDetail(open.dataset.openProduct);
+  });
+  $("#productDetailBody").addEventListener("click", event => {
+    const pickImg = event.target.closest("[data-pick-image]");
+    const pickColor = event.target.closest("[data-pick-color]");
+    const zoom = event.target.closest("[data-zoom-image]");
+    const add = event.target.closest("[data-detail-add]");
+    const buy = event.target.closest("[data-detail-buy]");
+    if (pickImg) { detailState.imageIndex = Number(pickImg.dataset.pickImage); return openProductDetail(detailState.productId, true); }
+    if (pickColor) { detailState.color = pickColor.dataset.pickColor; return openProductDetail(detailState.productId, true); }
+    if (zoom) return openImageViewer(zoom.dataset.zoomImage);
+    if (add) { if (addToCart(add.dataset.detailAdd, detailState.color)) openProductDetail(add.dataset.detailAdd, true); return; }
+    if (buy) {
+      const product = productById(buy.dataset.detailBuy);
+      const already = cart.some(l => String(l.productId) === String(product.id) && (l.color || "") === (detailState.color || ""));
+      if (!already && !addToCart(buy.dataset.detailBuy, detailState.color)) return;
+      renderCheckout(); closeLayers();
+      $("#checkoutModal").classList.remove("hidden"); $("#overlay").classList.remove("hidden");
+    }
+  });
+
+  // ---- ຈັດການໝວດສິນຄ້າ (ເພີ່ມ / ແກ້ຊື່ / ລຶບ / ໃສ່ຮູບ) ----
+  let pendingCategoryImage = null;
+  $("#categoryTree").addEventListener("click", async event => {
+    const rename = event.target.closest("[data-cat-rename]");
+    const remove = event.target.closest("[data-cat-delete]");
+    const setImg = event.target.closest("[data-cat-image]");
+    if (rename || remove || setImg) { event.preventDefault(); event.stopPropagation(); }
+
+    if (setImg) { pendingCategoryImage = setImg.dataset.catImage; $("#categoryImageInput").click(); return; }
+
+    if (rename) {
+      const cat = catById(rename.dataset.catRename); if (!cat) return;
+      const name = prompt("ແກ້ໄຂຊື່:", cat.name);
+      if (name === null) return;
+      const clean = name.trim(); if (!clean) return toast("ຊື່ຫວ່າງບໍ່ໄດ້");
+      const { error } = await supabase.from("categories").update({ name: clean }).eq("id", cat.id);
+      if (error) { console.error(error); return toast(`ແກ້ໄຂບໍ່ສຳເລັດ: ${error.message}`); }
+      await refreshCategories(); toast("ແກ້ໄຂຊື່ແລ້ວ");
+      return;
+    }
+
+    if (remove) {
+      const cat = catById(remove.dataset.catDelete); if (!cat) return;
+      const kids = descendantIds(cat.id).length - 1;
+      const items = productCountIn(cat.id);
+      if (items) return toast(`ລຶບບໍ່ໄດ້: ຍັງມີສິນຄ້າ ${items} ລາຍການຢູ່ໃນນີ້`);
+      if (!confirm(`ລຶບ “${cat.name}” ແທ້ບໍ?${kids ? `\n\nຈະລຶບໝວດຍ່ອຍພາຍໃນ ${kids} ລາຍການນຳ.` : ""}`)) return;
+      const { error } = await supabase.from("categories").delete().eq("id", cat.id);
+      if (error) { console.error(error); return toast(`ລຶບບໍ່ສຳເລັດ: ${error.message}`); }
+      await refreshCategories(); toast("ລຶບແລ້ວ");
+    }
+  });
+  $("#categoryImageInput").addEventListener("change", async event => {
+    const file = event.target.files[0];
+    if (!file || !pendingCategoryImage) { event.target.value = ""; return; }
+    toast("ກຳລັງອັບໂຫລດຮູບໝວດ...");
+    try {
+      const url = await uploadImage(file, "products");
+      const { error } = await supabase.from("categories").update({ image: url }).eq("id", pendingCategoryImage);
+      if (error) throw error;
+      await refreshCategories(); toast("ໃສ່ຮູບໝວດແລ້ວ");
+    } catch (err) { console.error(err); toast(`ອັບໂຫລດບໍ່ສຳເລັດ: ${err.message || err}`); }
+    finally { event.target.value = ""; pendingCategoryImage = null; }
   });
 
   // ---- ສຳຮອງ / ນຳເຂົ້າຂໍ້ມູນ ----

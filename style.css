@@ -215,3 +215,92 @@
 .load-error h3{margin:0 0 6px;color:var(--red)}
 .load-error p{margin:0 0 16px;color:var(--muted);font-size:14px;line-height:1.7}
 .load-error small{display:block;margin-top:14px;color:#a4b0aa;font-size:11px;word-break:break-word}
+
+/* ============ ຮອບທີ 4: ໝວດ 3 ຊັ້ນ · ຫຼາຍຮູບ · ສີ ============ */
+
+/* --- ບັດໝວດໃຫຍ່ພ້ອມໄອຄອນ (ໜ້າຮ້ານ) --- */
+.cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin:22px 0 26px}
+.cat-card{display:flex;flex-direction:column;align-items:center;gap:9px;padding:20px 14px;border:1px solid var(--line);border-radius:16px;background:#fff;text-align:center;transition:transform .15s,box-shadow .15s,border-color .15s}
+.cat-card:hover{transform:translateY(-3px);box-shadow:var(--shadow);border-color:var(--green)}
+.cat-card:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+.cat-art{display:grid;place-items:center;width:78px;height:78px;border-radius:50%;background:var(--green-pale);overflow:hidden}
+.cat-art img{width:100%;height:100%;object-fit:cover}
+.cat-emoji{font-size:36px;line-height:1}
+.cat-name{font-weight:700;font-size:15px;line-height:1.35;color:var(--ink)}
+.cat-card small{color:var(--muted);font-size:11px}
+
+/* --- ເສັ້ນທາງໝວດ --- */
+.cat-breadcrumb{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:20px 0 4px;font-size:13px}
+.cat-breadcrumb button{border:0;background:transparent;color:var(--green);font-weight:700;padding:5px 8px;border-radius:8px}
+.cat-breadcrumb button:hover{background:var(--green-pale)}
+.cat-breadcrumb span[aria-current]{color:var(--ink);font-weight:700;padding:5px 2px}
+.cat-breadcrumb i{color:#b7c4bd;font-style:normal}
+
+/* --- ຕົວບອກຈຳນວນຮູບ ແລະ ສີ ເທິງບັດສິນຄ້າ --- */
+.img-count{position:absolute;left:9px;top:9px;background:rgba(0,0,0,.62);color:#fff;font-size:11px;font-weight:700;border-radius:7px;padding:3px 8px}
+.color-dots{display:flex;flex-wrap:wrap;gap:4px;margin:2px 0 8px}
+.color-dots span{background:#f2f6f3;border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-size:10px;color:#4d5d55}
+
+/* --- ຄັງຮູບໃນໜ້າລາຍລະອຽດ --- */
+.img-pager{position:absolute;left:10px;bottom:10px;background:rgba(0,0,0,.62);color:#fff;font-size:11px;font-weight:700;border-radius:7px;padding:5px 9px}
+.thumb-strip{display:flex;gap:8px;margin-top:10px;overflow-x:auto;padding-bottom:4px}
+.thumb{flex:0 0 auto;width:62px;height:62px;border-radius:10px;overflow:hidden;border:2px solid transparent;background:var(--green-pale);padding:0}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb.active{border-color:var(--green)}
+.thumb:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+
+/* --- ເລືອກສີ --- */
+.color-picker{margin:16px 0}
+.picker-label{margin:0 0 8px;font-size:13px;color:var(--muted)}
+.picker-label b{color:var(--green-dark)}
+.picker-label em{color:var(--red);font-style:normal}
+.color-options{display:flex;flex-wrap:wrap;gap:8px}
+.color-chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 15px;font-size:13px;font-weight:700;color:#4d5d55}
+.color-chip:hover{border-color:var(--green);color:var(--green)}
+.color-chip.active{background:var(--green);border-color:var(--green);color:#fff}
+.detail-back{margin-top:12px;padding-left:0}
+.cart-color{color:var(--muted);font-size:12px;margin:2px 0}
+
+/* --- ຕົວຢ່າງຫຼາຍຮູບໃນຟອມ --- */
+.preview-strip{display:flex;gap:9px;overflow-x:auto;width:100%;padding:4px}
+.preview-strip figure{flex:0 0 auto;margin:0;position:relative;width:96px}
+.preview-strip img{width:96px;height:96px;object-fit:cover;border-radius:10px;box-shadow:0 4px 12px rgba(12,52,34,.14)}
+.preview-strip figcaption{position:absolute;left:6px;top:6px;background:rgba(0,0,0,.62);color:#fff;font-size:10px;font-weight:700;border-radius:5px;padding:1px 6px}
+
+/* --- ເລືອກໂໝດແຍກ/ລວມ --- */
+.multi-mode{border:1px solid var(--line);border-radius:13px;padding:13px 15px;background:#f7faf8;margin:0}
+.multi-mode legend{font-size:12px;font-weight:700;color:var(--green-dark);padding:0 6px}
+.mode-option{display:flex;gap:10px;align-items:flex-start;padding:9px 0;cursor:pointer}
+.mode-option input{margin-top:4px;flex:0 0 auto}
+.mode-option b{display:block;font-size:14px}
+.mode-option small{display:block;color:var(--muted);font-size:12px;line-height:1.6;margin-top:2px}
+
+/* --- ຕົ້ນໄມ້ໝວດໃນຫຼັງບ້ານ --- */
+.category-tree{display:grid;gap:11px;margin-top:14px}
+.cat-node{border:1px solid var(--line);border-radius:13px;background:#fff;overflow:hidden}
+.cat-node>summary{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;list-style:none;font-size:14px}
+.cat-node>summary::-webkit-details-marker{display:none}
+.cat-node>summary::before{content:"▸";color:var(--muted);transition:transform .15s;flex:0 0 auto}
+.cat-node[open]>summary::before{transform:rotate(90deg)}
+.cat-node.level-1>summary{background:var(--green-pale)}
+.cat-node.level-2{margin:0 12px 11px;border-radius:11px}
+.cat-node.level-2>summary{padding:9px 12px;font-size:13px}
+.node-art{display:grid;place-items:center;width:34px;height:34px;border-radius:9px;background:#fff;overflow:hidden;font-size:18px;flex:0 0 auto}
+.node-art img{width:100%;height:100%;object-fit:cover}
+.cat-node summary small{color:var(--muted);font-size:11px}
+.node-tools{margin-left:auto;display:flex;gap:3px;flex:0 0 auto}
+.node-tools button{width:29px;height:29px;border:0;background:transparent;border-radius:7px;color:var(--muted);font-size:14px;line-height:1}
+.node-tools button:hover{background:rgba(0,0,0,.08);color:var(--ink)}
+.node-tools button.danger:hover{background:#fbeceb;color:var(--red)}
+.model-chips{display:flex;flex-wrap:wrap;gap:7px;padding:4px 12px 13px}
+.model-chips .category-chip{background:#f2f6f3;border:1px solid var(--line);border-radius:999px;padding:4px 6px 4px 12px;font-size:12px}
+.model-chips .category-chip.has-items{background:var(--green-pale);border-color:#cbe3d6}
+
+@media (max-width:670px){
+  .cat-grid{grid-template-columns:repeat(2,1fr);gap:10px;margin:16px 0 20px}
+  .cat-card{padding:15px 10px}
+  .cat-art{width:62px;height:62px}.cat-emoji{font-size:28px}
+  .cat-name{font-size:13px}
+  .cat-node.level-2{margin:0 8px 9px}
+  .thumb{width:54px;height:54px}
+}
