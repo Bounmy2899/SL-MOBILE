@@ -42,6 +42,7 @@ let activeOrderFilter = "all";
 let restockFilter = "all";
 let manageCategoryFilter = "all";
 let editingProductId = null;
+let selectedModels = new Set();   // ລຸ້ນທີ່ຕິກໄວ້ໃນຟອມສິນຄ້າ
 let previewUrls = [];        // ຮູບຕົວຢ່າງໃນຟອມສິນຄ້າ (ຕ້ອງ revoke ຄືນ)
 let firstLoadDone = false;   // ຍັງບໍ່ທັນໄດ້ຂໍ້ມູນຈາກຖານຂໍ້ມູນເທື່ອ
 
@@ -105,10 +106,15 @@ function categoryPath(id) {
   return path;
 }
 // ນັບສິນຄ້າໃນໝວດ (ລວມລູກຫຼານ)
+// ສິນຄ້າຢູ່ໃນຂອບເຂດໝວດນີ້ບໍ່ — ນັບທັງໝວດຫຼັກ ແລະ ລຸ້ນທີ່ຕິກໄວ້
+function productInScope(product, idSet) {
+  if (idSet.has(String(product.categoryId))) return true;
+  return productModelIds(product).some(id => idSet.has(id));
+}
 function productCountIn(id) {
   if (id == null) return 0;
-  if (!directCount) buildCategoryIndex();
-  return descendantIds(id).reduce((sum, key) => sum + (directCount.get(key) || 0), 0);
+  const ids = new Set(descendantIds(id));
+  return data.products.filter(pr => productInScope(pr, ids)).length;
 }
 // ຮູບຂອງສິນຄ້າ (ຮອງຮັບທັງແບບເກົ່າ image ແລະ ແບບໃໝ່ images[])
 function productImages(product) {
@@ -116,6 +122,22 @@ function productImages(product) {
   if (list.length) return list;
   return product?.image ? [product.image] : [];
 }
+// ລຸ້ນທັງໝົດທີ່ມີໃນຮ້ານ (ໝວດຊັ້ນ 3) — ໃຊ້ໃນລາຍການຕິກ ແລະ ການວາງຈາກ Excel
+function allModelCategories() {
+  const out = [];
+  childrenOf(null).forEach(l1 => childrenOf(l1.id).forEach(l2 =>
+    childrenOf(l2.id).forEach(l3 => out.push({ ...l3, l1: l1.name, l2: l2.name, icon: l1.icon }))));
+  return out;
+}
+function productModelIds(product) {
+  return Array.isArray(product?.models) ? product.models.map(String).filter(Boolean) : [];
+}
+function productModelNames(product) {
+  return productModelIds(product).map(id => catById(id)?.name).filter(Boolean);
+}
+// ຈັບຄູ່ຊື່ລຸ້ນແບບຢືດຢຸ່ນ (ບໍ່ສົນຕົວພິມ ຫຼື ຊ່ອງວ່າງ)
+const normModel = (t) => String(t || "").toLowerCase().replace(/[\s._\-()]/g, "");
+
 function productColors(product) {
   return Array.isArray(product?.colors) ? product.colors.filter(Boolean) : [];
 }
@@ -135,7 +157,7 @@ function orderTotal(order) { return order.items.reduce((sum, item) => sum + item
 // Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
 // ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
 // ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
-const APP_VERSION = "8 · ແກ້ປຸ່ມສະຖານະ + ຄັງຮູບ";
+const APP_VERSION = "9 · ເລືອກລຸ້ນທີ່ໃສ່ໄດ້ + ມືຖືກະທັດຮັດ";
 let uploadSeq = 0;
 function safeFileName(file) {
   const raw = String(file?.name || "");
@@ -235,7 +257,7 @@ function renderCustomerShop() {
     const ids = new Set(descendantIds(navL1));
     showProducts = kids.length
       ? data.products.filter(pr => String(pr.categoryId) === String(navL1))
-      : data.products.filter(pr => ids.has(String(pr.categoryId)));
+      : data.products.filter(pr => productInScope(pr, ids));
   } else {
     // ຊັ້ນ 3 — ຊິບຮຸ່ນ (ສະແດງສະເພາະຮຸ່ນທີ່ມີສິນຄ້າ)
     const models = childrenOf(navL2).filter(c => productCountIn(c.id) > 0);
@@ -246,14 +268,15 @@ function renderCustomerShop() {
     }
     const scope = navL3 || navL2;
     const ids = new Set(descendantIds(scope));
-    showProducts = data.products.filter(pr => ids.has(String(pr.categoryId)));
+    showProducts = data.products.filter(pr => productInScope(pr, ids));
   }
 
   // ---- ກັ່ນຕອງດ້ວຍຄຳຄົ້ນຫາ ----
   const products = showProducts.filter(product => {
     if (!query) return true;
     const path = categoryPath(product.categoryId).map(c => c.name).join(" ");
-    return `${product.name} ${product.description} ${path}`.toLowerCase().includes(query);
+    const models = productModelNames(product).join(" ");
+    return `${product.name} ${product.description} ${path} ${models}`.toLowerCase().includes(query);
   });
 
   $("#productGrid").innerHTML = products.map(product => {
@@ -262,6 +285,7 @@ function renderCustomerShop() {
     const label = path.length ? path.map(c => escapeHtml(c.name)).join(" · ") : "ບໍ່ມີໝວດ";
     const imgs = productImages(product);
     const colors = productColors(product);
+    const modelNames = productModelNames(product);
     return `<article class="product-card">
       <button class="product-card-media" type="button" data-open-product="${product.id}" aria-label="ເບິ່ງລາຍລະອຽດ ${escapeHtml(product.name)}">
         <div class="product-image">${imageMarkup(product)}</div>
@@ -272,6 +296,7 @@ function renderCustomerShop() {
         <p class="product-category">${label}</p>
         <h3 class="product-name">${escapeHtml(product.name)}</h3>
         <p class="product-description">${escapeHtml(product.description || "ສິນຄ້າຄຸນນະພາບ ພ້ອມໃຫ້ເລືອກ")}</p>
+        ${modelNames.length ? `<p class="fits-line">ໃສ່ໄດ້ <b>${modelNames.length}</b> ລຸ້ນ · ${escapeHtml(modelNames.slice(0,2).join(", "))}${modelNames.length > 2 ? " …" : ""}</p>` : ""}
         ${colors.length ? `<div class="color-dots">${colors.slice(0,6).map(c => `<span title="${escapeHtml(c)}">${escapeHtml(c)}</span>`).join("")}${colors.length > 6 ? `<span>+${colors.length - 6}</span>` : ""}</div>` : ""}
         <div class="product-bottom"><div><strong class="product-price">${money(product.price)}</strong><span class="product-stock">${stockText(product)}</span></div></div>
         <div class="card-actions">
@@ -298,6 +323,7 @@ function openProductDetail(productId, keepState) {
   if (!product) return;
   const imgs = productImages(product);
   const colors = productColors(product);
+  const modelNames = productModelNames(product);
   if (!keepState || String(detailState.productId) !== String(productId)) {
     detailState = { productId, imageIndex: 0, color: colors.length === 1 ? colors[0] : "" };
   }
@@ -323,6 +349,10 @@ function openProductDetail(productId, keepState) {
       <strong class="detail-price">${money(product.price)}</strong>
       <span class="product-stock">${stockText(product)}</span>
       <p class="detail-desc">${escapeHtml(product.description || "ສິນຄ້າຄຸນນະພາບ ພ້ອມໃຫ້ເລືອກ")}</p>
+      ${modelNames.length ? `<div class="fits-box">
+        <p class="picker-label">ໃສ່ໄດ້ກັບ <b>${modelNames.length}</b> ລຸ້ນ</p>
+        <div class="fits-chips">${modelNames.map(n => `<span>${escapeHtml(n)}</span>`).join("")}</div>
+      </div>` : ""}
       ${colors.length ? `<div class="color-picker">
         <p class="picker-label">ເລືອກສີ ${detailState.color ? `<b>· ${escapeHtml(detailState.color)}</b>` : `<em>(ຍັງບໍ່ໄດ້ເລືອກ)</em>`}</p>
         <div class="color-options">${colors.map(c =>
@@ -690,13 +720,13 @@ function renderManagerProducts() {
   $("#managerProducts").innerHTML = list.length ? list.map(product => {
     const path = categoryPath(product.categoryId);
     const label = path.length ? path.map(c => escapeHtml(c.name)).join(" › ") : "ບໍ່ມີໝວດ";
-    const imgs = productImages(product); const cols = productColors(product);
+    const imgs = productImages(product); const cols = productColors(product); const mdl = productModelIds(product);
     const mode = isOnDemand(product) ? "ສັ່ງຕາມອໍເດີ" : "ພ້ອມສົ່ງ";
     return `<article class="manager-product-row">
       <div class="manager-product-thumb">${imageMarkup(product)}</div>
       <div>
         <h3>${escapeHtml(product.name)}</h3>
-        <p>${label} · ${mode}${imgs.length > 1 ? ` · 🖼 ${imgs.length} ຮູບ` : ""}${cols.length ? ` · ສີ: ${cols.map(escapeHtml).join(", ")}` : ""}</p>
+        <p>${label} · ${mode}${imgs.length > 1 ? ` · 🖼 ${imgs.length} ຮູບ` : ""}${cols.length ? ` · ສີ: ${cols.map(escapeHtml).join(", ")}` : ""}${mdl.length ? ` · ໃສ່ໄດ້ ${mdl.length} ລຸ້ນ` : ""}</p>
         <div class="stock-control">
           <button type="button" data-stock-minus="${product.id}" aria-label="ລົບສະຕັອກ">−</button>
           <input type="number" min="0" step="1" value="${Number(product.stock || 0)}" data-stock-input="${product.id}" aria-label="ຈຳນວນສະຕັອກ">
@@ -894,6 +924,12 @@ function setImagePreview(html) {
 }
 function openProductForm(product = null) {
   editingProductId = product?.id ?? null; const form = $("#productForm"); form.reset(); renderProductCategories();
+  selectedModels = new Set(product ? productModelIds(product) : []);
+  if ($("#modelSearch")) $("#modelSearch").value = "";
+  $("#modelPasteBox")?.classList.add("hidden");
+  if ($("#modelPasteInput")) $("#modelPasteInput").value = "";
+  if ($("#modelPasteResult")) $("#modelPasteResult").textContent = "";
+  renderModelList();
   $("#productFormTitle").textContent = product ? "ແກ້ໄຂສິນຄ້າ" : "ເພີ່ມສິນຄ້າໃໝ່";
   if (product) {
     form.productId.value = product.id; form.name.value = product.name; form.categoryId.value = product.categoryId;
@@ -910,6 +946,35 @@ function openProductForm(product = null) {
   }
   setPriceMode(); $("#productFormWrap").classList.remove("hidden"); $("#productFormWrap").scrollIntoView({ behavior: "smooth", block: "start" });
 }
+// ---------- ລາຍການຕິກເລືອກລຸ້ນ ----------
+function renderModelList() {
+  const query = normModel($("#modelSearch")?.value || "");
+  const groups = new Map();
+  allModelCategories().forEach(m => {
+    if (query && !normModel(m.name).includes(query)) return;
+    const key = `${m.icon || ""} ${m.l1} › ${m.l2}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(m);
+  });
+  const box = $("#modelList");
+  if (!box) return;
+  box.innerHTML = groups.size ? [...groups.entries()].map(([label, items]) => {
+    const allOn = items.every(m => selectedModels.has(String(m.id)));
+    return `<div class="model-group">
+      <div class="model-group-head">
+        <b>${escapeHtml(label)}</b>
+        <button type="button" class="small-button" data-model-all="${items.map(m => m.id).join(",")}">${allOn ? "ເອົາອອກທັງກຸ່ມ" : "ເລືອກທັງກຸ່ມ"}</button>
+      </div>
+      <div class="model-options">${items.map(m => `
+        <label class="model-chip${selectedModels.has(String(m.id)) ? " on" : ""}">
+          <input type="checkbox" data-model-id="${m.id}" ${selectedModels.has(String(m.id)) ? "checked" : ""}>
+          <span>${escapeHtml(m.name)}</span>
+        </label>`).join("")}</div>
+    </div>`;
+  }).join("") : `<p class="muted small-copy">ບໍ່ພົບລຸ້ນ — ລອງພິມຄຳອື່ນ ຫຼື ໄປເພີ່ມລຸ້ນໃໝ່ທີ່ແທັບ “ໝວດສິນຄ້າ”</p>`;
+  const countEl = $("#modelCount"); if (countEl) countEl.textContent = selectedModels.size;
+}
+
 function closeProductForm() { $("#productFormWrap").classList.add("hidden"); editingProductId = null; setImagePreview(`<span class="input-hint">ຍັງບໍ່ໄດ້ເລືອກຮູບ</span>`); }
 
 // ---------- 5) Database / Storage / Auth ----------
@@ -1183,7 +1248,8 @@ document.addEventListener("DOMContentLoaded", () => {
         cost: Number(fd.get("cost")), price,
         stock: Number(fd.get("stock")),
         supplierUrl: fd.get("supplierUrl").trim(),
-        colors
+        colors,
+        models: [...selectedModels]
       };
 
       // ອັບໂຫລດຮູບທັງໝົດ (ບອກຄວາມຄືບໜ້າໃຫ້ຮູ້)
@@ -1217,6 +1283,55 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (err) {
       console.error(err); toast(`ບັນທຶກສິນຄ້າບໍ່ສຳເລັດ: ${err.message || err}`);
     } finally { submitButton.disabled = false; submitButton.textContent = originalLabel; }
+  });
+
+  // ---- ເລືອກລຸ້ນທີ່ໃສ່ໄດ້ ----
+  $("#modelSearch").addEventListener("input", renderModelList);
+  $("#modelClear").addEventListener("click", () => { selectedModels.clear(); renderModelList(); });
+  $("#modelList").addEventListener("change", event => {
+    const box = event.target.closest("[data-model-id]"); if (!box) return;
+    const id = String(box.dataset.modelId);
+    if (box.checked) selectedModels.add(id); else selectedModels.delete(id);
+    box.closest(".model-chip")?.classList.toggle("on", box.checked);
+    $("#modelCount").textContent = selectedModels.size;
+  });
+  $("#modelList").addEventListener("click", event => {
+    const all = event.target.closest("[data-model-all]"); if (!all) return;
+    const ids = all.dataset.modelAll.split(",").filter(Boolean);
+    const allOn = ids.every(id => selectedModels.has(id));
+    ids.forEach(id => allOn ? selectedModels.delete(id) : selectedModels.add(id));
+    renderModelList();
+  });
+
+  // ---- ວາງລາຍການລຸ້ນຈາກ Excel / Word ແລ້ວຕິກໃຫ້ອັດຕະໂນມັດ ----
+  $("#modelPasteToggle").addEventListener("click", () => {
+    const box = $("#modelPasteBox"); box.classList.toggle("hidden");
+    if (!box.classList.contains("hidden")) $("#modelPasteInput").focus();
+  });
+  $("#modelPasteCancel").addEventListener("click", () => { $("#modelPasteBox").classList.add("hidden"); });
+  $("#modelPasteApply").addEventListener("click", () => {
+    const text = $("#modelPasteInput").value || "";
+    // ຂັ້ນດ້ວຍ ຈຸດ / ຈຸດພາກ / ຂຶ້ນແຖວ / ແທັບ / ຂີດຕັ້ງ
+    const parts = text.split(/[\n\r\t.,;|/]+/).map(t => t.trim()).filter(Boolean);
+    if (!parts.length) return toast("ຍັງບໍ່ມີຂໍ້ຄວາມໃຫ້ອ່ານ");
+    const models = allModelCategories();
+    const matched = [], missed = [];
+    parts.forEach(raw => {
+      const key = normModel(raw);
+      if (!key) return;
+      // ຈັບຄູ່ຕົງກ່ອນ ຖ້າບໍ່ໄດ້ຄ່ອຍຈັບແບບມີຢູ່ໃນຊື່
+      let hit = models.find(m => normModel(m.name) === key)
+             || models.find(m => normModel(m.name).endsWith(key) && key.length >= 2)
+             || models.find(m => normModel(m.name).includes(key) && key.length >= 3);
+      if (hit) { selectedModels.add(String(hit.id)); if (!matched.includes(hit.name)) matched.push(hit.name); }
+      else missed.push(raw);
+    });
+    renderModelList();
+    const result = $("#modelPasteResult");
+    result.innerHTML = `<b>ຕິກໃຫ້ແລ້ວ ${matched.length} ລຸ້ນ</b>`
+      + (matched.length ? `<br><span class="ok">${matched.map(escapeHtml).join(" · ")}</span>` : "")
+      + (missed.length ? `<br><span class="miss">ບໍ່ພົບໃນລະບົບ ${missed.length} ລາຍການ: ${missed.map(escapeHtml).join(", ")} — ໄປເພີ່ມລຸ້ນທີ່ແທັບ “ໝວດສິນຄ້າ” ກ່ອນ</span>` : "");
+    toast(missed.length ? `ຕິກໄດ້ ${matched.length} · ບໍ່ພົບ ${missed.length}` : `ຕິກໃຫ້ແລ້ວ ${matched.length} ລຸ້ນ`);
   });
 
   // ຮູບຕົວຢ່າງ ພໍເລືອກໄຟລ໌ຮູບສິນຄ້າ

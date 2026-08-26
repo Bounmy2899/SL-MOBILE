@@ -33,7 +33,7 @@
   <link rel="preload" as="font" type="font/woff2" href="fonts/phetsarath-lao-400-normal.woff2" crossorigin />
   <link rel="preload" as="image" href="banner-640.webp" imagesrcset="banner-640.webp 640w, banner-1000.webp 1000w, banner-1290.webp 1290w" imagesizes="(max-width:670px) 100vw, (max-width:1200px) 92vw, 1170px" fetchpriority="high" />
   <link rel="preconnect" href="https://fsizqnygcklqlxuopbcc.supabase.co" crossorigin />
-  <link rel="stylesheet" href="style.css?v=8" />
+  <link rel="stylesheet" href="style.css?v=9" />
 </head>
 <body>
   <div class="app-shell">
@@ -227,6 +227,24 @@
                 <label class="mode-option"><input type="radio" name="multiMode" value="split" />
                   <span><b>ແຍກເປັນຫຼາຍສິນຄ້າ</b><small>ລາຍລະອຽດຕ່າງກັນ — ສ້າງໃຫ້ອັດຕະໂນມັດ 1 ຮູບ = 1 ສິນຄ້າ ລາຄາ ແລະ ຂໍ້ມູນອື່ນເໝືອນກັນໝົດ</small></span></label>
               </fieldset>
+              <fieldset class="span-2 model-picker">
+                <legend>ລຸ້ນທີ່ໃສ່ໄດ້ <b id="modelCount">0</b> ລຸ້ນ</legend>
+                <p class="muted small-copy">ຕິກເລືອກລຸ້ນທີ່ເຄສ/ສິນຄ້ານີ້ໃສ່ໄດ້ — ລູກຄ້າຈະເຫັນລາຍການນີ້ ແລະ ຄົ້ນຫາຕາມລຸ້ນໄດ້</p>
+                <div class="model-tools">
+                  <label class="search-box model-search"><span>⌕</span><input id="modelSearch" type="search" placeholder="ພິມຫາລຸ້ນ ເຊັ່ນ 15 Pro" /></label>
+                  <button type="button" class="small-button" id="modelClear">ລ້າງທັງໝົດ</button>
+                  <button type="button" class="small-button" id="modelPasteToggle">📋 ວາງລາຍການຈາກ Excel / Word</button>
+                </div>
+                <div id="modelPasteBox" class="paste-box hidden">
+                  <textarea id="modelPasteInput" rows="3" placeholder="ວາງລາຍການລຸ້ນທີ່ນີ້ — ຂັ້ນດ້ວຍ ຈຸດ (.) ຈຸດພາກ (,) ຫຼື ຂຶ້ນແຖວໃໝ່&#10;ຕົວຢ່າງ:  iPhone 8 . iPhone 9 . Samsung S24"></textarea>
+                  <div class="paste-actions">
+                    <button type="button" class="primary-button" id="modelPasteApply">ຕິກໃຫ້ອັດຕະໂນມັດ</button>
+                    <button type="button" class="secondary-button" id="modelPasteCancel">ຍົກເລີກ</button>
+                  </div>
+                  <p id="modelPasteResult" class="paste-result"></p>
+                </div>
+                <div id="modelList" class="model-list"></div>
+              </fieldset>
               <label class="span-2">ສີທີ່ມີ <span class="optional">(ບໍ່ຕ້ອງໃສ່ກໍໄດ້)</span><input name="colors" id="colorsInput" placeholder="ຕົວຢ່າງ: ດຳ, ຂາວ, ຟ້າ, ບົວ" /><span class="input-hint">ຂັ້ນດ້ວຍເຄື່ອງໝາຍຈຸດ (,) — ລູກຄ້າຈະເລືອກສີໄດ້ຕອນສັ່ງ</span></label>
               <label>ຊື່ສິນຄ້າ<input name="name" placeholder="ຕົວຢ່າງ: ເຄສ iPhone 15 Pro" required /></label>
               <label>ໝວດສິນຄ້າ<select name="categoryId" id="productCategory" required></select></label>
@@ -286,7 +304,7 @@
   </section>
 
   <div id="toast" class="toast hidden" role="status"></div>
-  <script src="supabase-js.js?v=8" defer></script>
-  <script type="module" src="app.js?v=8"></script>
+  <script src="supabase-js.js?v=9" defer></script>
+  <script type="module" src="app.js?v=9"></script>
 </body>
 </html>
