@@ -33,7 +33,7 @@
   <link rel="preload" as="font" type="font/woff2" href="fonts/phetsarath-lao-400-normal.woff2" crossorigin />
   <link rel="preload" as="image" href="banner-640.webp" imagesrcset="banner-640.webp 640w, banner-1000.webp 1000w, banner-1290.webp 1290w" imagesizes="(max-width:670px) 100vw, (max-width:1200px) 92vw, 1170px" fetchpriority="high" />
   <link rel="preconnect" href="https://fsizqnygcklqlxuopbcc.supabase.co" crossorigin />
-  <link rel="stylesheet" href="style.css?v=9" />
+  <link rel="stylesheet" href="style.css?v=10" />
 </head>
 <body>
   <div class="app-shell">
@@ -236,12 +236,18 @@
                   <button type="button" class="small-button" id="modelPasteToggle">📋 ວາງລາຍການຈາກ Excel / Word</button>
                 </div>
                 <div id="modelPasteBox" class="paste-box hidden">
-                  <textarea id="modelPasteInput" rows="3" placeholder="ວາງລາຍການລຸ້ນທີ່ນີ້ — ຂັ້ນດ້ວຍ ຈຸດ (.) ຈຸດພາກ (,) ຫຼື ຂຶ້ນແຖວໃໝ່&#10;ຕົວຢ່າງ:  iPhone 8 . iPhone 9 . Samsung S24"></textarea>
+                  <textarea id="modelPasteInput" rows="3" placeholder="ວາງລາຍການລຸ້ນທີ່ນີ້ — ຂັ້ນແຕ່ລະລຸ້ນດ້ວຍ ຈຸດ (.) ຈຸດພາກ (,) ຫຼື ຂຶ້ນແຖວໃໝ່&#10;ຕົວຢ່າງ:  iPhone 8 . iPhone 9 . Samsung S24"></textarea>
                   <div class="paste-actions">
-                    <button type="button" class="primary-button" id="modelPasteApply">ຕິກໃຫ້ອັດຕະໂນມັດ</button>
+                    <button type="button" class="primary-button" id="modelPasteApply">ນຳໃຊ້ (ຕິກທີ່ມີຢູ່ແລ້ວ)</button>
                     <button type="button" class="secondary-button" id="modelPasteCancel">ຍົກເລີກ</button>
                   </div>
                   <p id="modelPasteResult" class="paste-result"></p>
+                  <div id="modelAddMissing" class="add-missing hidden">
+                    <label>ເພີ່ມລຸ້ນທີ່ຍັງບໍ່ມີ ເຂົ້າໃນກຸ່ມ
+                      <select id="modelAddGroup"></select>
+                    </label>
+                    <button type="button" class="primary-button" id="modelAddApply">+ ເພີ່ມ ແລະ ຕິກໃຫ້ເລີຍ</button>
+                  </div>
                 </div>
                 <div id="modelList" class="model-list"></div>
               </fieldset>
@@ -304,7 +310,7 @@
   </section>
 
   <div id="toast" class="toast hidden" role="status"></div>
-  <script src="supabase-js.js?v=9" defer></script>
-  <script type="module" src="app.js?v=9"></script>
+  <script src="supabase-js.js?v=10" defer></script>
+  <script type="module" src="app.js?v=10"></script>
 </body>
 </html>

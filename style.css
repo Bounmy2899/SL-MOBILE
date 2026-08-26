@@ -406,3 +406,81 @@
 .model-picker .search-box{display:flex;align-items:center;gap:6px;height:40px;padding:0 12px}
 .model-picker .search-box input{height:auto;min-height:0;padding:0;border:0;background:transparent;font-size:14px}
 .model-picker .search-box span{font-size:19px;line-height:1;flex:0 0 auto}
+
+/* --- ປຸ່ມ + ເພີ່ມລຸ້ນ ໃນຫົວກຸ່ມ ແລະ ກ່ອງເພີ່ມລຸ້ນທີ່ຍັງບໍ່ມີ --- */
+.model-group-head .head-tools{display:flex;gap:5px;flex:0 0 auto}
+.model-group-head .small-button.add{border-color:var(--green);color:var(--green);font-weight:700}
+.model-group-head .small-button.add:hover{background:var(--green);color:#fff}
+.add-missing{display:flex;flex-wrap:wrap;gap:9px;align-items:end;margin-top:11px;padding-top:11px;border-top:1px dashed var(--line)}
+.add-missing label{display:grid;gap:5px;font-size:12px;font-weight:700;color:var(--green-dark);flex:1 1 210px}
+.add-missing select{height:38px;border:1px solid var(--line);border-radius:9px;padding:0 10px;background:#fff;font:inherit;font-size:13px;max-width:100%}
+.add-missing .primary-button{flex:0 0 auto;min-height:38px;font-size:13px}
+
+/* ================= ຫຼັງບ້ານ: ມືຖືໃຫ້ກະທັດຮັດ ຄືແອັບ ================= */
+@media (max-width:670px){
+  .manager-header{min-height:0;padding:10px 12px;gap:8px}
+  .manager-header .eyebrow{display:none}
+  .manager-header h1{font-size:17px}
+  .manager-header .secondary-button{min-height:36px;padding:7px 12px;font-size:12px}
+  .manager-nav{padding:7px 8px;gap:4px}
+  .manager-tab{font-size:11px;padding:7px 10px;gap:5px;border-radius:9px}
+  .manager-tab b.on{min-width:17px;height:17px;font-size:10px;padding:0 4px}
+  .manager-content{padding:14px 10px}
+  .pane-heading{gap:6px;margin-bottom:4px}
+  .pane-heading h2{font-size:19px}
+  .pane-heading p{font-size:11px;line-height:1.5}
+  /* ບັດສະຫຼຸບ */
+  .stats-grid{grid-template-columns:repeat(2,1fr);gap:8px}
+  .stat-card{padding:11px}
+  .stat-card span{font-size:10px}
+  .stat-card strong{font-size:17px}
+  .stat-card small{font-size:9px;line-height:1.4}
+  .financial-grid{grid-template-columns:repeat(2,1fr);gap:8px}
+  .panel{padding:13px}
+  .panel h3{font-size:15px}
+  .dashboard-columns,.finance-columns{grid-template-columns:1fr;gap:10px}
+  /* ລາຍການສິນຄ້າ */
+  .manage-toolbar{gap:7px;margin:4px 0 10px}
+  .manage-count{font-size:11px}
+  .manager-product-row{grid-template-columns:52px 1fr;padding:8px;gap:8px;border-radius:11px}
+  .manager-product-thumb{width:52px;height:52px}
+  .manager-product-row h3{font-size:12px;line-height:1.35}
+  .manager-product-row p{font-size:10px;line-height:1.5}
+  .product-tools{grid-column:1/-1;flex-direction:row;gap:6px}
+  .product-tools .small-button{flex:1}
+  .stock-control{margin-top:5px}
+  .stock-control button{width:27px;height:27px}
+  .stock-control input{width:52px;height:27px;font-size:12px}
+  /* ອໍເດີ */
+  .order-card{border-radius:12px}
+  .order-card-head,.order-card-body,.order-card-foot{padding:10px}
+  .order-id{font-size:14px}
+  .order-date{font-size:10px}
+  .order-summary-price{font-size:14px}
+  .order-card-body h4{font-size:12px}
+  .order-card-body p{font-size:11px;line-height:1.6}
+  .order-item-mini{grid-template-columns:36px 1fr auto;gap:7px;font-size:11px}
+  .order-item-thumb{width:36px;height:36px}
+  .order-actions{flex-wrap:wrap;gap:6px;width:100%}
+  .order-status-select{flex:1 1 100%;min-height:36px}
+  .order-actions .small-button{flex:1}
+  /* ຕ້ອງສັ່ງສິນຄ້າ */
+  .restock-row{padding:9px;gap:9px;border-radius:11px}
+  .restock-info h4{font-size:13px}
+  .restock-meta{font-size:11px;line-height:1.55}
+  .restock-state{font-size:10px;padding:1px 6px}
+  .restock-orders span{font-size:10px}
+  .group-summary .chip{font-size:11px;padding:4px 10px}
+  /* ໝວດສິນຄ້າ */
+  .cat-node>summary{padding:10px;gap:7px;font-size:13px}
+  .cat-node.level-2>summary{padding:8px 10px;font-size:12px}
+  .node-art{width:29px;height:29px;font-size:15px}
+  .node-tools button{width:27px;height:27px;font-size:13px}
+  .model-chips{padding:3px 9px 10px;gap:5px}
+  .inline-form{gap:8px}
+  /* ຟອມ */
+  .form-grid{gap:11px}
+  .form-card-title h3{font-size:17px}
+  .add-missing{flex-direction:column;align-items:stretch}
+  .add-missing .primary-button{width:100%}
+}

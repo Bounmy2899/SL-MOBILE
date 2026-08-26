@@ -43,6 +43,7 @@ let restockFilter = "all";
 let manageCategoryFilter = "all";
 let editingProductId = null;
 let selectedModels = new Set();   // ລຸ້ນທີ່ຕິກໄວ້ໃນຟອມສິນຄ້າ
+let pendingNewModels = [];        // ລຸ້ນທີ່ວາງມາແຕ່ຍັງບໍ່ມີໃນລະບົບ
 let previewUrls = [];        // ຮູບຕົວຢ່າງໃນຟອມສິນຄ້າ (ຕ້ອງ revoke ຄືນ)
 let firstLoadDone = false;   // ຍັງບໍ່ທັນໄດ້ຂໍ້ມູນຈາກຖານຂໍ້ມູນເທື່ອ
 
@@ -157,7 +158,7 @@ function orderTotal(order) { return order.items.reduce((sum, item) => sum + item
 // Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
 // ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
 // ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
-const APP_VERSION = "9 · ເລືອກລຸ້ນທີ່ໃສ່ໄດ້ + ມືຖືກະທັດຮັດ";
+const APP_VERSION = "10 · ເພີ່ມລຸ້ນໄດ້ໃນຟອມ + ຫຼັງບ້ານກະທັດຮັດ";
 let uploadSeq = 0;
 function safeFileName(file) {
   const raw = String(file?.name || "");
@@ -929,6 +930,8 @@ function openProductForm(product = null) {
   $("#modelPasteBox")?.classList.add("hidden");
   if ($("#modelPasteInput")) $("#modelPasteInput").value = "";
   if ($("#modelPasteResult")) $("#modelPasteResult").textContent = "";
+  pendingNewModels = [];
+  $("#modelAddMissing")?.classList.add("hidden");
   renderModelList();
   $("#productFormTitle").textContent = product ? "ແກ້ໄຂສິນຄ້າ" : "ເພີ່ມສິນຄ້າໃໝ່";
   if (product) {
@@ -947,32 +950,74 @@ function openProductForm(product = null) {
   setPriceMode(); $("#productFormWrap").classList.remove("hidden"); $("#productFormWrap").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 // ---------- ລາຍການຕິກເລືອກລຸ້ນ ----------
+// ສ້າງລຸ້ນໃໝ່ເຂົ້າກຸ່ມ (ຂ້າມອັນທີ່ມີຢູ່ແລ້ວ) ແລ້ວຕິກໃຫ້ທັງໝົດ
+async function addModelsToGroup(parentId, names) {
+  const parent = catById(parentId);
+  if (!parent) { toast("ບໍ່ພົບກຸ່ມ"); return { added: [], existed: [] }; }
+  const existing = childrenOf(parentId);
+  const added = [], existed = [];
+  const rows = [];
+  let sort = (existing.length + 1) * 10;
+  names.forEach(raw => {
+    const name = String(raw).trim();
+    if (!name) return;
+    const hit = existing.find(c => normModel(c.name) === normModel(name));
+    if (hit) { selectedModels.add(String(hit.id)); existed.push(hit.name); return; }
+    if (rows.some(r => normModel(r.name) === normModel(name))) return;
+    rows.push({ name, parentId: Number(parentId), sort: (sort += 10) });
+    added.push(name);
+  });
+  if (rows.length) {
+    const { data: created, error } = await supabase.from("categories").insert(rows).select();
+    if (error) { console.error(error); toast(`ເພີ່ມບໍ່ສຳເລັດ: ${error.message}`); return { added: [], existed }; }
+    (created || []).forEach(c => selectedModels.add(String(c.id)));
+    await refreshCategories();
+  }
+  renderModelList();
+  return { added, existed };
+}
+// ຊ່ອງເລືອກກຸ່ມ ສຳລັບ "ເພີ່ມລຸ້ນທີ່ຍັງບໍ່ມີ"
+function renderModelGroupSelect() {
+  const sel = $("#modelAddGroup"); if (!sel) return;
+  const keep = sel.value;
+  const opts = [];
+  childrenOf(null).forEach(l1 => childrenOf(l1.id).forEach(l2 =>
+    opts.push(`<option value="${l2.id}">${escapeHtml(l1.icon || "")} ${escapeHtml(l1.name)} › ${escapeHtml(l2.name)}</option>`)));
+  sel.innerHTML = opts.join("");
+  if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+}
+
 function renderModelList() {
   const query = normModel($("#modelSearch")?.value || "");
+  // ສ້າງກຸ່ມຈາກໂຄງໝວດ (ກຸ່ມທີ່ຍັງບໍ່ມີລຸ້ນເລີຍ ກໍສະແດງ ເພື່ອກົດ + ເພີ່ມໄດ້)
   const groups = new Map();
-  allModelCategories().forEach(m => {
-    if (query && !normModel(m.name).includes(query)) return;
-    const key = `${m.icon || ""} ${m.l1} › ${m.l2}`;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(m);
-  });
+  childrenOf(null).forEach(l1 => childrenOf(l1.id).forEach(l2 => {
+    const key = `${l1.icon || ""} ${l1.name} › ${l2.name}`;
+    const items = childrenOf(l2.id).filter(m => !query || normModel(m.name).includes(query));
+    if (query && !items.length) return;
+    groups.set(key, { parentId: l2.id, items });
+  }));
   const box = $("#modelList");
   if (!box) return;
-  box.innerHTML = groups.size ? [...groups.entries()].map(([label, items]) => {
-    const allOn = items.every(m => selectedModels.has(String(m.id)));
+  box.innerHTML = groups.size ? [...groups.entries()].map(([label, { parentId, items }]) => {
+    const allOn = items.length && items.every(m => selectedModels.has(String(m.id)));
     return `<div class="model-group">
       <div class="model-group-head">
         <b>${escapeHtml(label)}</b>
-        <button type="button" class="small-button" data-model-all="${items.map(m => m.id).join(",")}">${allOn ? "ເອົາອອກທັງກຸ່ມ" : "ເລືອກທັງກຸ່ມ"}</button>
+        <span class="head-tools">
+          <button type="button" class="small-button" data-model-all="${items.map(m => m.id).join(",")}">${allOn ? "ເອົາອອກ" : "ເລືອກໝົດ"}</button>
+          <button type="button" class="small-button add" data-model-add-to="${parentId}">+ ເພີ່ມລຸ້ນ</button>
+        </span>
       </div>
-      <div class="model-options">${items.map(m => `
+      <div class="model-options">${items.length ? items.map(m => `
         <label class="model-chip${selectedModels.has(String(m.id)) ? " on" : ""}">
           <input type="checkbox" data-model-id="${m.id}" ${selectedModels.has(String(m.id)) ? "checked" : ""}>
           <span>${escapeHtml(m.name)}</span>
-        </label>`).join("")}</div>
+        </label>`).join("") : `<span class="muted small-copy">ຍັງບໍ່ມີລຸ້ນໃນກຸ່ມນີ້ — ກົດ “+ ເພີ່ມລຸ້ນ”</span>`}</div>
     </div>`;
   }).join("") : `<p class="muted small-copy">ບໍ່ພົບລຸ້ນ — ລອງພິມຄຳອື່ນ ຫຼື ໄປເພີ່ມລຸ້ນໃໝ່ທີ່ແທັບ “ໝວດສິນຄ້າ”</p>`;
   const countEl = $("#modelCount"); if (countEl) countEl.textContent = selectedModels.size;
+  renderModelGroupSelect();
 }
 
 function closeProductForm() { $("#productFormWrap").classList.add("hidden"); editingProductId = null; setImagePreview(`<span class="input-hint">ຍັງບໍ່ໄດ້ເລືອກຮູບ</span>`); }
@@ -1295,7 +1340,18 @@ document.addEventListener("DOMContentLoaded", () => {
     box.closest(".model-chip")?.classList.toggle("on", box.checked);
     $("#modelCount").textContent = selectedModels.size;
   });
-  $("#modelList").addEventListener("click", event => {
+  $("#modelList").addEventListener("click", async event => {
+    const addTo = event.target.closest("[data-model-add-to]");
+    if (addTo) {
+      const parent = catById(addTo.dataset.modelAddTo);
+      const input = prompt(`ເພີ່ມລຸ້ນເຂົ້າກຸ່ມ “${parent?.name || ""}”\n\nໃສ່ຫຼາຍລຸ້ນພ້ອມກັນໄດ້ — ຂັ້ນດ້ວຍ ຈຸດ (.) ຫຼື ຈຸດພາກ (,)\nຕົວຢ່າງ:  iPhone 18 . iPhone 18 Pro Max`, "");
+      if (input === null) return;
+      const names = input.split(/[\n\r\t.,;|/]+/).map(t => t.trim()).filter(Boolean);
+      if (!names.length) return toast("ຍັງບໍ່ໄດ້ໃສ່ຊື່ລຸ້ນ");
+      const { added, existed } = await addModelsToGroup(addTo.dataset.modelAddTo, names);
+      toast(added.length ? `ເພີ່ມ ${added.length} ລຸ້ນ ແລະ ຕິກໃຫ້ແລ້ວ` : (existed.length ? "ລຸ້ນເຫຼົ່ານີ້ມີຢູ່ແລ້ວ · ຕິກໃຫ້ແລ້ວ" : "ບໍ່ໄດ້ເພີ່ມຫຍັງ"));
+      return;
+    }
     const all = event.target.closest("[data-model-all]"); if (!all) return;
     const ids = all.dataset.modelAll.split(",").filter(Boolean);
     const allOn = ids.every(id => selectedModels.has(id));
@@ -1327,11 +1383,30 @@ document.addEventListener("DOMContentLoaded", () => {
       else missed.push(raw);
     });
     renderModelList();
+    pendingNewModels = [...new Set(missed)];
     const result = $("#modelPasteResult");
     result.innerHTML = `<b>ຕິກໃຫ້ແລ້ວ ${matched.length} ລຸ້ນ</b>`
       + (matched.length ? `<br><span class="ok">${matched.map(escapeHtml).join(" · ")}</span>` : "")
-      + (missed.length ? `<br><span class="miss">ບໍ່ພົບໃນລະບົບ ${missed.length} ລາຍການ: ${missed.map(escapeHtml).join(", ")} — ໄປເພີ່ມລຸ້ນທີ່ແທັບ “ໝວດສິນຄ້າ” ກ່ອນ</span>` : "");
-    toast(missed.length ? `ຕິກໄດ້ ${matched.length} · ບໍ່ພົບ ${missed.length}` : `ຕິກໃຫ້ແລ້ວ ${matched.length} ລຸ້ນ`);
+      + (pendingNewModels.length ? `<br><span class="miss">ຍັງບໍ່ມີໃນລະບົບ ${pendingNewModels.length} ລຸ້ນ: ${pendingNewModels.map(escapeHtml).join(", ")}</span>` : "");
+    $("#modelAddMissing").classList.toggle("hidden", !pendingNewModels.length);
+    if (pendingNewModels.length) $("#modelAddApply").textContent = `+ ເພີ່ມ ${pendingNewModels.length} ລຸ້ນນີ້ ແລະ ຕິກໃຫ້ເລີຍ`;
+    toast(pendingNewModels.length ? `ຕິກໄດ້ ${matched.length} · ຍັງບໍ່ມີ ${pendingNewModels.length} ລຸ້ນ` : `ຕິກໃຫ້ແລ້ວ ${matched.length} ລຸ້ນ`);
+  });
+
+  // ເພີ່ມລຸ້ນທີ່ຍັງບໍ່ມີ ເຂົ້າໃນກຸ່ມທີ່ເລືອກ
+  $("#modelAddApply").addEventListener("click", async event => {
+    if (!pendingNewModels.length) return;
+    const parentId = $("#modelAddGroup").value;
+    if (!parentId) return toast("ກະລຸນາເລືອກກຸ່ມກ່ອນ");
+    const button = event.currentTarget; button.disabled = true;
+    try {
+      const { added } = await addModelsToGroup(parentId, pendingNewModels);
+      const parent = catById(parentId);
+      $("#modelPasteResult").innerHTML = `<span class="ok">ເພີ່ມ ${added.length} ລຸ້ນເຂົ້າ “${escapeHtml(parent?.name || "")}” ແລະ ຕິກໃຫ້ແລ້ວ</span>`;
+      pendingNewModels = [];
+      $("#modelAddMissing").classList.add("hidden");
+      toast(`ເພີ່ມ ${added.length} ລຸ້ນແລ້ວ`);
+    } finally { button.disabled = false; }
   });
 
   // ຮູບຕົວຢ່າງ ພໍເລືອກໄຟລ໌ຮູບສິນຄ້າ
