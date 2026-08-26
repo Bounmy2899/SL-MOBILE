@@ -135,6 +135,7 @@ function orderTotal(order) { return order.items.reduce((sum, item) => sum + item
 // Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
 // ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
 // ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
+const APP_VERSION = "8 · ແກ້ປຸ່ມສະຖານະ + ຄັງຮູບ";
 let uploadSeq = 0;
 function safeFileName(file) {
   const raw = String(file?.name || "");
@@ -330,7 +331,7 @@ function openProductDetail(productId, keepState) {
       <div class="detail-facts">
         ${path.map(c => `<div><span>${escapeHtml(c.parentId == null ? "ໝວດ" : "ຮຸ່ນ / ປະເພດ")}</span><b>${escapeHtml(c.name)}</b></div>`).join("")}
         <div><span>ສະຖານະ</span><b>${escapeHtml(stockText(product))}</b></div>
-        ${inCartQty ? `<div><span>ໃນກະຕ່າຂອງທ່ານ</span><b>${inCartQty} ຊິ້ນ${inCart.filter(l=>l.color).length ? ` (${inCart.filter(l=>l.color).map(l=>escapeHtml(l.color)).join(", ")})` : ""}</b></div>` : ""}
+        ${inCartQty ? `<div data-in-cart><span>ໃນກະຕ່າຂອງທ່ານ</span><b>${inCartQty} ຊິ້ນ${inCart.filter(l=>l.color).length ? ` (${inCart.filter(l=>l.color).map(l=>escapeHtml(l.color)).join(", ")})` : ""}</b></div>` : ""}
       </div>
       <div class="detail-actions">
         <button class="primary-button full" type="button" data-detail-add="${product.id}">ເພີ່ມໃສ່ກະຕ່າ</button>
@@ -339,6 +340,31 @@ function openProductDetail(productId, keepState) {
       <button class="text-button detail-back" type="button" data-close-modal>← ເບິ່ງສິນຄ້າອື່ນ</button>
     </div>`;
   if (!keepState) openLayer("#productModal");
+}
+
+// ປ່ຽນຮູບ: ແກ້ແຕ່ src ຂອງຮູບໃຫຍ່ ແລະ ກອບຂອງຮູບຍ່ອຍ — ບໍ່ສ້າງ DOM ໃໝ່ທັງໝົດ
+function updateDetailImage() {
+  const product = productById(detailState.productId); if (!product) return;
+  const imgs = productImages(product);
+  const idx = Math.min(Math.max(0, detailState.imageIndex), Math.max(0, imgs.length - 1));
+  detailState.imageIndex = idx;
+  const src = imgs[idx] || "";
+  const mainBtn = $("#productDetailBody .product-detail-image");
+  const mainImg = mainBtn?.querySelector("img");
+  if (mainImg && mainImg.getAttribute("src") !== src) mainImg.src = src;
+  if (mainBtn) mainBtn.dataset.zoomImage = src;
+  const pager = $("#productDetailBody .img-pager");
+  if (pager) pager.textContent = `${idx + 1} / ${imgs.length}`;
+  $$("#productDetailBody .thumb").forEach((t, i) => t.classList.toggle("active", i === idx));
+}
+// ປ່ຽນສີ: ແກ້ແຕ່ປ້າຍ ແລະ ປຸ່ມສີ
+function updateDetailColor() {
+  const label = $("#productDetailBody .picker-label");
+  if (label) label.innerHTML = detailState.color
+    ? `ເລືອກສີ <b>· ${escapeHtml(detailState.color)}</b>`
+    : `ເລືອກສີ <em>(ຍັງບໍ່ໄດ້ເລືອກ)</em>`;
+  $$("#productDetailBody .color-chip").forEach(c =>
+    c.classList.toggle("active", c.dataset.pickColor === detailState.color));
 }
 
 function openImageViewer(src) {
@@ -930,7 +956,22 @@ async function refreshProducts() {
   if (lastFetchOk) { firstLoadDone = true; loadErrorShown = false; }
   renderAll();
 }
-async function refreshOrders() { data.orders = await fetchTable("orders", "createdAt"); renderAll(); }
+async function refreshOrders() {
+  data.orders = await fetchTable("orders", "createdAt");
+  renderAll();
+  refreshBadges();
+}
+// ປ້າຍເລກແດງ = ວຽກທີ່ "ຕ້ອງລົງມືເຮັດ" ເທົ່ານັ້ນ
+//   ອໍເດີ        → new       (ຕ້ອງກົດຮັບອໍເດີ)
+//   ຕ້ອງສັ່ງສິນຄ້າ → needOrder (ຕ້ອງໄປສັ່ງຈາກຮ້ານຕົ້ນທາງ)
+//   ຕ້ອງຈັດສົ່ງ   → preparing (ຕ້ອງຫໍ່ ແລະ ສົ່ງໃຫ້ລູກຄ້າ)
+//   ordering / shipping / complete / cancelled = ບໍ່ຕ້ອງເຕືອນ (ລໍຖ້າ ຫຼື ຈົບແລ້ວ)
+function refreshBadges() {
+  const count = (st) => data.orders.filter(o => o.status === st).length;
+  setBadge("#orderBadge", count("new"));
+  setBadge("#restockBadge", restockAggregate(["needOrder"]).length);
+  setBadge("#shippingBadge", count("preparing"));
+}
 async function refreshExpenses() { data.expenses = await fetchTable("expenses"); renderFinancials(); }
 async function refreshSettings() {
   const { data: row, error } = await supabase.from("settings").select("*").eq("id", "store").maybeSingle();
@@ -987,6 +1028,8 @@ async function createOrderFromForm(form) {
 
 document.addEventListener("DOMContentLoaded", () => {
   $("#year").textContent = new Date().getFullYear();
+  console.log("SL-Mobile app version", APP_VERSION);
+  const vBox = $("#appVersion"); if (vBox) vBox.textContent = `ລຸ້ນ ${APP_VERSION}`;
   renderShopProfile(); renderCustomerShop(); renderCart();
 
   // ---- ໂຫລດຂໍ້ມູນຄັ້ງທຳອິດ ແລ້ວເປີດ realtime (ອັບເດດອັດຕະໂນມັດທຸກເຄື່ອງ) ----
@@ -1063,11 +1106,22 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#backToShop").addEventListener("click", showShop);
   $$(".manager-tab").forEach(button => button.addEventListener("click", () => switchManagerTab(button.dataset.managerTab)));
   $("#managerOrderSearch").addEventListener("input", renderOrders); $("#orderFilters").addEventListener("click", event => { const button = event.target.closest("[data-order-filter]"); if (!button) return; activeOrderFilter = button.dataset.orderFilter; renderOrders(); });
-  $("#ordersList").addEventListener("change", event => { const select = event.target.closest("[data-order-status]"); if (!select) return; supabase.from("orders").update({ status: select.value }).eq("id", select.dataset.orderStatus).then(({ error }) => { if (error) return toast("ອັບເດດບໍ່ສຳເລັດ"); refreshOrders(); toast("ອັບເດດສະຖານະອໍເດີແລ້ວ"); }); });
-  $("#ordersList").addEventListener("click", event => {
+  // ບັດອໍເດີສະແດງທັງໃນແທັບ "ອໍເດີ" ແລະ "ຕ້ອງຈັດສົ່ງ" —
+  // ຈຶ່ງຜູກທີ່ເອກະສານທັງໜ້າ ເພື່ອໃຫ້ໃຊ້ໄດ້ທັງສອງບ່ອນ
+  document.addEventListener("change", event => {
+    const select = event.target.closest("[data-order-status]"); if (!select) return;
+    select.disabled = true;
+    supabase.from("orders").update({ status: select.value }).eq("id", select.dataset.orderStatus)
+      .then(async ({ error }) => {
+        if (error) { console.error(error); select.disabled = false; return toast(`ອັບເດດບໍ່ສຳເລັດ: ${error.message}`); }
+        await refreshOrders();
+        toast(`ປ່ຽນເປັນ “${statusLabel(select.value)}” ແລ້ວ`);
+      });
+  });
+  document.addEventListener("click", event => {
     const receipt = event.target.closest("[data-view-receipt]");
     const accept = event.target.closest("[data-accept-order]");
-    if (receipt) $(`#receipt-${receipt.dataset.viewReceipt}`).classList.toggle("hidden");
+    if (receipt) $(`#receipt-${receipt.dataset.viewReceipt}`)?.classList.toggle("hidden");
     if (accept) { accept.disabled = true; acceptOrder(accept.dataset.acceptOrder).finally(() => { accept.disabled = false; }); }
   });
 
@@ -1323,10 +1377,23 @@ document.addEventListener("DOMContentLoaded", () => {
     const zoom = event.target.closest("[data-zoom-image]");
     const add = event.target.closest("[data-detail-add]");
     const buy = event.target.closest("[data-detail-buy]");
-    if (pickImg) { detailState.imageIndex = Number(pickImg.dataset.pickImage); return openProductDetail(detailState.productId, true); }
-    if (pickColor) { detailState.color = pickColor.dataset.pickColor; return openProductDetail(detailState.productId, true); }
+    if (pickImg) { detailState.imageIndex = Number(pickImg.dataset.pickImage); return updateDetailImage(); }
+    if (pickColor) { detailState.color = pickColor.dataset.pickColor; return updateDetailColor(); }
     if (zoom) return openImageViewer(zoom.dataset.zoomImage);
-    if (add) { if (addToCart(add.dataset.detailAdd, detailState.color)) openProductDetail(add.dataset.detailAdd, true); return; }
+    if (add) {
+      if (!addToCart(add.dataset.detailAdd, detailState.color)) return;
+      const product = productById(add.dataset.detailAdd);
+      const lines = cart.filter(l => String(l.productId) === String(product.id));
+      const qty = lines.reduce((n, l) => n + l.quantity, 0);
+      const facts = $("#productDetailBody .detail-facts");
+      if (facts) {
+        let row = facts.querySelector("[data-in-cart]");
+        if (!row) { facts.insertAdjacentHTML("beforeend", `<div data-in-cart><span>ໃນກະຕ່າຂອງທ່ານ</span><b></b></div>`); row = facts.querySelector("[data-in-cart]"); }
+        const colorNames = lines.filter(l => l.color).map(l => escapeHtml(l.color)).join(", ");
+        row.querySelector("b").textContent = `${qty} ຊິ້ນ${colorNames ? ` (${colorNames})` : ""}`;
+      }
+      return;
+    }
     if (buy) {
       const product = productById(buy.dataset.detailBuy);
       const already = cart.some(l => String(l.productId) === String(product.id) && (l.color || "") === (detailState.color || ""));

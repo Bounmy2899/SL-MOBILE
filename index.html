@@ -33,7 +33,7 @@
   <link rel="preload" as="font" type="font/woff2" href="fonts/phetsarath-lao-400-normal.woff2" crossorigin />
   <link rel="preload" as="image" href="banner-640.webp" imagesrcset="banner-640.webp 640w, banner-1000.webp 1000w, banner-1290.webp 1290w" imagesizes="(max-width:670px) 100vw, (max-width:1200px) 92vw, 1170px" fetchpriority="high" />
   <link rel="preconnect" href="https://fsizqnygcklqlxuopbcc.supabase.co" crossorigin />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=8" />
 </head>
 <body>
   <div class="app-shell">
@@ -278,6 +278,7 @@
           <div class="pane-heading"><div><h2>ຖານຂໍ້ມູນ ແລະ ສຳຮອງຂໍ້ມູນ</h2><p>ຂໍ້ມູນທັງໝົດຢູ່ໃນ Supabase (Postgres) — ໃຊ້ຮ່ວມກັນທຸກເຄື່ອງ/ທຸກອຸປະກອນ</p></div></div>
           <div class="panel data-panel"><h3>ສົ່ງອອກຂໍ້ມູນ</h3><p class="muted">ດາວໂຫຼດໄຟລ໌ JSON ເພື່ອເກັບສຳຮອງ.</p><button id="exportData" class="secondary-button" type="button">ດາວໂຫຼດຂໍ້ມູນ</button></div>
           <div class="panel data-panel"><h3>ນຳເຂົ້າຂໍ້ມູນ</h3><p class="muted">ເລືອກຟາຍ JSON ທີ່ເຄີຍສົ່ງອອກໄວ້. ຈະຂຽນທັບຂໍ້ມູນໃນຖານຂໍ້ມູນອອນລາຍ (ທຸກຄົນຈະເຫັນທັນທີ).</p><input id="importData" type="file" accept="application/json,.json" /></div>
+          <div class="panel data-panel"><h3>ລຸ້ນຂອງເວັບ</h3><p class="muted">ໃຊ້ກວດວ່າອັບໂຫລດໄຟລ໌ໃໝ່ຂຶ້ນສຳເລັດແລ້ວ ຫຼື ຍັງ.</p><p id="appVersion" class="app-version">—</p></div>
           <div class="panel warning-panel"><h3>ຂໍ້ຄວນຮູ້</h3><p>ຂໍ້ມູນສິນຄ້າ, ອໍເດີ ແລະ ຮູບພາບຕອນນີ້ຖືກເກັບໄວ້ໃນ Supabase (ຖານຂໍ້ມູນ Postgres + Storage) ບໍ່ແມ່ນໃນ browser ອີກຕໍ່ໄປ — ເປີດຈາກເຄື່ອງ/ອຸປະກອນໃດກໍເຫັນຂໍ້ມູນດຽວກັນ. ກະລຸນາເບິ່ງ README.txt ເພື່ອກວດສອບ Row Level Security ໃຫ້ຄົບກ່ອນເປີດຮ້ານໃຫ້ລູກຄ້າຈິງ.</p></div>
         </section>
       </div>
@@ -285,7 +286,7 @@
   </section>
 
   <div id="toast" class="toast hidden" role="status"></div>
-  <script src="supabase-js.js" defer></script>
-  <script type="module" src="app.js"></script>
+  <script src="supabase-js.js?v=8" defer></script>
+  <script type="module" src="app.js?v=8"></script>
 </body>
 </html>
