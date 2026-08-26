@@ -132,11 +132,29 @@ function dateLabel(value) { return new Date(value).toLocaleString("lo-LA", { dat
 function orderTotal(order) { return order.items.reduce((sum, item) => sum + item.price * item.quantity, 0); }
 
 // ອັບໂຫລດຮູບໜຶ່ງໃບຂຶ້ນ Supabase Storage (bucket ຊື່ "images"), ໄດ້ຄືນ URL ສຳລັບເອົາໄປໃສ່ໃນຖານຂໍ້ມູນ
+// Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
+// ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
+// ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
+let uploadSeq = 0;
+function safeFileName(file) {
+  const raw = String(file?.name || "");
+  const dot = raw.lastIndexOf(".");
+  let ext = dot > -1 ? raw.slice(dot + 1) : "";
+  ext = ext.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5);
+  if (!ext) {
+    const fromType = String(file?.type || "").split("/")[1] || "";
+    ext = fromType.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5) || "jpg";
+  }
+  const rand = Math.random().toString(36).slice(2, 8);
+  return `${Date.now()}-${++uploadSeq}-${rand}.${ext}`;
+}
+
 async function uploadImage(file, folder) {
   if (!file) return "";
-  const path = `${folder}/${Date.now()}-${file.name}`;
-  const { error } = await supabase.storage.from("images").upload(path, file, { upsert: false });
-  if (error) { console.error(error); throw error; }
+  const path = `${folder}/${safeFileName(file)}`;
+  const { error } = await supabase.storage.from("images")
+    .upload(path, file, { upsert: false, contentType: file.type || undefined });
+  if (error) { console.error("upload failed:", path, error); throw error; }
   const { data: pub } = supabase.storage.from("images").getPublicUrl(path);
   return pub.publicUrl;
 }
