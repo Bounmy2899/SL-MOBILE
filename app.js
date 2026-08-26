@@ -61,11 +61,27 @@ const catById = (id) => data.categories.find(category => String(category.id) ===
 const categoryName = (id) => catById(id)?.name || "ບໍ່ມີໝວດ";
 const bySort = (a, b) => (a.sort ?? 0) - (b.sort ?? 0) || String(a.name).localeCompare(String(b.name), "lo");
 // ລູກໂດຍກົງຂອງໝວດໜຶ່ງ (parentId = null ຄືໝວດໃຫຍ່)
+// ດັດຊະນີໝວດ — ສ້າງເທື່ອດຽວຕໍ່ການໂຫລດ ແທນການກັ່ນຕອງ+ຮຽງ 486 ແຖວທຸກຄັ້ງ
+let childIndex = null, directCount = null;
+function buildCategoryIndex() {
+  childIndex = new Map();
+  for (const c of data.categories) {
+    if (!c || c.id == null) continue;
+    const key = c.parentId == null ? "root" : String(c.parentId);
+    if (!childIndex.has(key)) childIndex.set(key, []);
+    childIndex.get(key).push(c);
+  }
+  for (const arr of childIndex.values()) arr.sort(bySort);
+  directCount = new Map();
+  for (const pr of data.products) {
+    const key = String(pr.categoryId);
+    directCount.set(key, (directCount.get(key) || 0) + 1);
+  }
+}
+function invalidateCategoryIndex() { childIndex = null; directCount = null; }
 function childrenOf(parentId) {
-  return data.categories
-    .filter(c => c && c.id != null &&                       // ແຖວທີ່ບໍ່ມີ id ຖືວ່າໃຊ້ບໍ່ໄດ້
-      (parentId == null ? (c.parentId == null) : String(c.parentId) === String(parentId)))
-    .sort(bySort);
+  if (!childIndex) buildCategoryIndex();
+  return childIndex.get(parentId == null ? "root" : String(parentId)) || [];
 }
 // ໄອດີຂອງໝວດນີ້ ແລະ ລູກຫຼານທັງໝົດ (ໃຊ້ກັ່ນຕອງສິນຄ້າ)
 function descendantIds(id) {
@@ -91,8 +107,8 @@ function categoryPath(id) {
 // ນັບສິນຄ້າໃນໝວດ (ລວມລູກຫຼານ)
 function productCountIn(id) {
   if (id == null) return 0;
-  const ids = new Set(descendantIds(id));
-  return data.products.filter(pr => ids.has(String(pr.categoryId))).length;
+  if (!directCount) buildCategoryIndex();
+  return descendantIds(id).reduce((sum, key) => sum + (directCount.get(key) || 0), 0);
 }
 // ຮູບຂອງສິນຄ້າ (ຮອງຮັບທັງແບບເກົ່າ image ແລະ ແບບໃໝ່ images[])
 function productImages(product) {
@@ -889,9 +905,10 @@ function showLoadError(message) {
     </div>`;
   $("#emptyProducts")?.classList.add("hidden");
 }
-async function refreshCategories() { data.categories = await fetchTable("categories"); renderAll(); }
+async function refreshCategories() { data.categories = await fetchTable("categories"); invalidateCategoryIndex(); renderAll(); }
 async function refreshProducts() {
   data.products = await fetchTable("products");
+  invalidateCategoryIndex();
   if (lastFetchOk) { firstLoadDone = true; loadErrorShown = false; }
   renderAll();
 }
