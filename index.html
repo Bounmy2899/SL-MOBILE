@@ -3,8 +3,36 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#126d47" />
-  <title>ໂພນມະນີ | ອາໄຫຼ່ & ເຄສໂທລະສັບ</title>
+  <meta name="theme-color" content="#c42026" />
+  <title>SL-Mobile ໂພນມະນີ | ອາໄຫຼ່ & ເຄສໂທລະສັບ</title>
+  <meta name="description" content="SL-Mobile ໂພນມະນີ — ຂາຍອາໄຫຼ່ ແລະ ເຄສໂທລະສັບທຸກລຸ້ນ ພ້ອມບໍລິການສ້ອມແປງມືຖື ເຊັກອາການຟຣີ. ສັ່ງອອນລາຍ ສົ່ງທົ່ວປະເທດ ໂທ 020 5655 8855" />
+
+  <!-- ໄອຄອນຮ້ານ (ແຖບເບຣົາເຊີ ແລະ ຕອນບັນທຶກໃສ່ໜ້າຈໍໂຮມ) -->
+  <link rel="icon" href="favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
+  <link rel="manifest" href="site.webmanifest" />
+
+  <!-- ຕອນສົ່ງລິ້ງໃນ Facebook / Messenger / WhatsApp / Line ໃຫ້ຂຶ້ນບັດພ້ອມຮູບຮ້ານ -->
+  <!-- ໝາຍເຫດ: ຖ້າປ່ຽນທີ່ຢູ່ເວັບ ໃຫ້ແກ້ 3 ບ່ອນລຸ່ມນີ້ (og:url, og:image, twitter:image) ໃຫ້ເປັນລິ້ງໃໝ່ -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="SL-Mobile ໂພນມະນີ" />
+  <meta property="og:locale" content="lo_LA" />
+  <meta property="og:title" content="SL-Mobile ໂພນມະນີ — ອາໄຫຼ່ & ເຄສໂທລະສັບ" />
+  <meta property="og:description" content="ຂາຍອາໄຫຼ່ ແລະ ເຄສໂທລະສັບທຸກລຸ້ນ ພ້ອມສ້ອມແປງມືຖື ເຊັກອາການຟຣີ. ສັ່ງອອນລາຍ ສົ່ງທົ່ວປະເທດ · ໂທ 020 5655 8855" />
+  <meta property="og:url" content="https://hilarious-kataifi-9486f8.netlify.app/" />
+  <meta property="og:image" content="https://hilarious-kataifi-9486f8.netlify.app/og-image.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="SL-Mobile ໂພນມະນີ ສ້ອມແປງມືຖື ທຸກລຸ້ນທຸກອາການ" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="SL-Mobile ໂພນມະນີ — ອາໄຫຼ່ & ເຄສໂທລະສັບ" />
+  <meta name="twitter:description" content="ຂາຍອາໄຫຼ່ ແລະ ເຄສໂທລະສັບທຸກລຸ້ນ ພ້ອມສ້ອມແປງມືຖື ເຊັກອາການຟຣີ · ໂທ 020 5655 8855" />
+  <meta name="twitter:image" content="https://hilarious-kataifi-9486f8.netlify.app/og-image.jpg" />
+
+  <link rel="preload" as="font" type="font/woff2" href="fonts/phetsarath-lao-400-normal.woff2" crossorigin />
+  <link rel="preload" as="image" href="banner-640.webp" imagesrcset="banner-640.webp 640w, banner-1000.webp 1000w, banner-1290.webp 1290w" imagesizes="(max-width:670px) 100vw, (max-width:1200px) 92vw, 1170px" fetchpriority="high" />
+  <link rel="preconnect" href="https://fsizqnygcklqlxuopbcc.supabase.co" crossorigin />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -23,18 +51,17 @@
     </header>
 
     <main id="top">
-      <section class="hero">
-        <div>
-          <p class="eyebrow">ສິນຄ້າສຳລັບທຸກຮຸ່ນ</p>
-          <h1>ເລືອກອາໄຫຼ່ ແລະ ເຄສທີ່ເໝາະກັບທ່ານ</h1>
-          <p class="hero-copy">ສັ່ງງ່າຍ ສົ່ງໄດ້ທົ່ວປະເທດ ເລືອກຈ່າຍປາຍທາງ ຫຼື ໂອນເງິນໄດ້</p>
-          <a class="primary-button" href="#products">ເລີ່ມເລືອກສິນຄ້າ</a>
-        </div>
-        <div class="hero-card" aria-hidden="true">
-          <div class="phone-shape"><span></span><i></i><i></i><i></i></div>
-          <div class="floating-tag tag-one">ເຄສໃໝ່</div>
-          <div class="floating-tag tag-two">ສົ່ງທົ່ວລາວ</div>
-        </div>
+      <section class="hero-banner">
+        <a href="#products" aria-label="ເບິ່ງສິນຄ້າ">
+          <picture>
+            <source type="image/webp" sizes="(max-width:670px) 100vw, (max-width:1200px) 92vw, 1170px"
+              srcset="banner-640.webp 640w, banner-1000.webp 1000w, banner-1290.webp 1290w" />
+            <img src="banner-1000.jpg" sizes="(max-width:670px) 100vw, (max-width:1200px) 92vw, 1170px"
+              srcset="banner-640.jpg 640w, banner-1000.jpg 1000w, banner-1290.jpg 1290w"
+              width="1290" height="491" fetchpriority="high" decoding="async"
+              alt="SL-Mobile ສ້ອມແປງມືຖື ທຸກລຸ້ນທຸກອາການ · ໂທ 020 56558855 / 020 54446969 · ເປີດ ວັນຈັນ-ວັນເສົາ 8:30-19:30" />
+          </picture>
+        </a>
       </section>
 
       <section class="shop-section" id="products">
@@ -46,6 +73,7 @@
           <label class="search-box"><span>⌕</span><input id="customerSearch" type="search" placeholder="ຄົ້ນຫາຊື່ສິນຄ້າ, ຮຸ່ນ..." /></label>
         </div>
         <div id="categoryTabs" class="category-tabs" aria-label="ໝວດສິນຄ້າ"></div>
+        <div id="subcategoryTabs" class="category-tabs subcategory-tabs hidden" aria-label="ຮຸ່ນ / ໝວດຍ່ອຍ"></div>
         <div id="productGrid" class="product-grid"></div>
         <div id="emptyProducts" class="empty-state hidden">
           <span>⌕</span><h3>ບໍ່ພົບສິນຄ້າ</h3><p>ລອງຄົ້ນຫາດ້ວຍຄຳອື່ນ ຫຼື ເລືອກໝວດໃໝ່</p>
@@ -115,6 +143,18 @@
     </div>
   </div>
 
+  <div id="productModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="productDetailName">
+    <div class="modal-panel product-detail-panel">
+      <button class="icon-button modal-close" type="button" aria-label="ປິດ">×</button>
+      <div id="productDetailBody" class="product-detail"></div>
+    </div>
+  </div>
+
+  <div id="imageViewer" class="image-viewer hidden" role="dialog" aria-modal="true" aria-label="ຮູບຕົ້ນສະບັບ">
+    <button class="image-viewer-close" type="button" aria-label="ປິດຮູບ">×</button>
+    <img id="imageViewerImg" src="" alt="" />
+  </div>
+
   <div id="successModal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-panel compact success-panel"><div class="success-icon">✓</div><p class="eyebrow">ສຳເລັດແລ້ວ</p><h2>ຮັບຄຳສັ່ງຊື້ແລ້ວ</h2><p id="successText" class="muted"></p><button class="primary-button full modal-close" type="button">ກັບໄປເລືອກສິນຄ້າ</button></div>
   </div>
@@ -125,6 +165,8 @@
       <nav class="manager-nav" aria-label="ເມນູຜູ້ຈັດການ">
         <button class="manager-tab active" data-manager-tab="dashboard" type="button">▦ ພາບລວມ</button>
         <button class="manager-tab" data-manager-tab="orders" type="button">▤ ອໍເດີ <b id="orderBadge">0</b></button>
+        <button class="manager-tab" data-manager-tab="restock" type="button">⇪ ຕ້ອງສັ່ງສິນຄ້າ <b id="restockBadge">0</b></button>
+        <button class="manager-tab" data-manager-tab="shipping" type="button">🚚 ຕ້ອງຈັດສົ່ງ <b id="shippingBadge">0</b></button>
         <button class="manager-tab" data-manager-tab="products" type="button">◈ ສິນຄ້າ</button>
         <button class="manager-tab" data-manager-tab="categories" type="button">▱ ໝວດສິນຄ້າ</button>
         <button class="manager-tab" data-manager-tab="payment" type="button">▧ ຮັບຊຳລະ</button>
@@ -135,7 +177,12 @@
       <div class="manager-content">
         <section class="manager-pane" data-pane="dashboard">
           <div class="pane-heading"><div><h2>ພາບລວມຂອງຮ້ານ</h2><p>ເບິ່ງຍອດຂາຍ ແລະ ອໍເດີລ່າສຸດ</p></div></div>
-          <div id="statsGrid" class="stats-grid"></div><div class="dashboard-columns"><div class="panel"><h3>ອໍເດີລ່າສຸດ</h3><div id="recentOrders"></div></div><div class="panel"><h3>ສິນຄ້າທີ່ຕ້ອງສັ່ງ</h3><p class="muted small-copy">ຫຼັງຈາກຮັບອໍເດີແລ້ວ ກົດລິ້ງຮ້ານຕົ້ນທາງເພື່ອສັ່ງສິນຄ້າ.</p><div id="supplierQueue"></div></div></div>
+          <div id="statsGrid" class="stats-grid"></div>
+          <div class="dashboard-columns">
+            <div class="panel"><h3>ອໍເດີລ່າສຸດ</h3><div id="recentOrders"></div></div>
+            <div class="panel"><h3>ສິນຄ້າທີ່ຕ້ອງສັ່ງ</h3><p class="muted small-copy">ຫຼັງຈາກຮັບອໍເດີແລ້ວ ກົດລິ້ງຮ້ານຕົ້ນທາງເພື່ອສັ່ງສິນຄ້າ.</p><div id="supplierQueue"></div></div>
+          </div>
+          <div class="panel" style="margin-top:16px"><h3>ສະຕັອກຕາມໝວດສິນຄ້າ</h3><p class="muted small-copy">ນັບຈຳນວນຊິ້ນທີ່ມີໃນຮ້ານ ແຍກຕາມໝວດ ແລະ ຮຸ່ນ.</p><div id="categoryStock" class="category-stock-list"></div></div>
         </section>
 
         <section class="manager-pane hidden" data-pane="orders">
@@ -143,16 +190,38 @@
           <div id="orderFilters" class="filter-row"></div><div id="ordersList" class="orders-list"></div>
         </section>
 
+        <section class="manager-pane hidden" data-pane="restock">
+          <div class="pane-heading"><div><h2>ສິນຄ້າທີ່ຕ້ອງສັ່ງ</h2><p>ລວມສິນຄ້າຈາກທຸກອໍເດີທີ່ຮ້ານຍັງບໍ່ມີສະຕັອກ — ສັ່ງແລ້ວກົດ “ສັ່ງແລ້ວ”</p></div></div>
+          <div id="restockSummary" class="restock-summary"></div>
+          <div id="restockGroups" class="group-summary"></div>
+          <div id="restockFilters" class="filter-row"></div>
+          <div id="restockList" class="restock-list"></div>
+        </section>
+
+        <section class="manager-pane hidden" data-pane="shipping">
+          <div class="pane-heading"><div><h2>ຕ້ອງຈັດສົ່ງ</h2><p>ອໍເດີທີ່ຕັດສະຕັອກແລ້ວ ພ້ອມຫໍ່ ແລະ ສົ່ງໃຫ້ລູກຄ້າ</p></div></div>
+          <div id="shippingSummary" class="restock-summary"></div>
+          <div id="shippingGroups" class="group-summary"></div>
+          <div id="shippingList" class="orders-list"></div>
+        </section>
+
         <section class="manager-pane hidden" data-pane="products">
           <div class="pane-heading"><div><h2>ສິນຄ້າ</h2><p>ເພີ່ມສິນຄ້າ ຕົ້ນທຶນ ລາຄາຂາຍ ແລະ ລິ້ງຮ້ານຕົ້ນທາງ</p></div><button id="openProductForm" class="primary-button" type="button">+ ເພີ່ມສິນຄ້າ</button></div>
-          <div id="productFormWrap" class="form-card hidden">
+          <div class="manage-toolbar">
+            <div id="manageCategoryFilter" class="filter-row"></div>
+            <label class="search-box manager-search"><span>⌕</span><input id="manageProductSearch" type="search" placeholder="ຄົ້ນຫາຊື່ສິນຄ້າ, ຮຸ່ນ..." /></label>
+          </div>
+          <p class="manage-count" id="manageCount"></p>
+          <div id="productFormWrap" class="form-card hidden as-modal"><div class="form-card-inner">
             <div class="form-card-title"><h3 id="productFormTitle">ເພີ່ມສິນຄ້າໃໝ່</h3><button id="closeProductForm" class="icon-button" type="button">×</button></div>
             <p class="cost-note">ລາຄາຕົ້ນທຶນ: ຜູ້ບໍລິຫານຕ້ອງຄຳນວນຕົ້ນທຶນຕໍ່ 1 ຊິ້ນ (ລວມຄ່າສົ່ງ/ຄ່າພາສີຖ້າມີ) ກ່ອນປ້ອນໃສ່.</p>
             <form id="productForm" class="form-grid">
               <input name="productId" type="hidden" />
-              <label>ຮູບສິນຄ້າ<input name="image" type="file" accept="image/*" /><span class="input-hint">ເລືອກຮູບຈາກເຄື່ອງ</span></label>
+              <label>ຮູບສິນຄ້າ<input name="image" id="productImageInput" type="file" accept="image/*" /><span class="input-hint">ເລືອກຮູບຈາກເຄື່ອງ — ຈະສະແດງຕົວຢ່າງໃຫ້ເບິ່ງທັນທີ</span></label>
+              <div id="productImagePreview" class="image-preview" aria-live="polite"><span class="input-hint">ຍັງບໍ່ໄດ້ເລືອກຮູບ</span></div>
               <label>ຊື່ສິນຄ້າ<input name="name" placeholder="ຕົວຢ່າງ: ເຄສ iPhone 15 Pro" required /></label>
               <label>ໝວດສິນຄ້າ<select name="categoryId" id="productCategory" required></select></label>
+              <label>ໝວດຍ່ອຍ / ຮຸ່ນ <span class="optional">(ບໍ່ຕ້ອງໃສ່ກໍໄດ້)</span><input name="subcategory" id="subcategoryInput" list="subcategoryOptions" placeholder="ຕົວຢ່າງ: iPhone 15 Pro Max" /><datalist id="subcategoryOptions"></datalist><span class="input-hint">ໃສ່ຮຸ່ນເພື່ອໃຫ້ລູກຄ້າກັ່ນຕອງເບິ່ງໄດ້ງ່າຍ</span></label>
               <label>ຮູບແບບການຂາຍ<select name="saleMode" id="saleMode"><option value="onDemand">ສັ່ງຕາມອໍເດີ (ສະຕັອກ 0 ກໍຂາຍໄດ້)</option><option value="inStock">ສິນຄ້າພ້ອມສົ່ງ</option></select><span class="input-hint">ເລືອກແບບສັ່ງໃຫ້ ຖ້າຮ້ານບໍ່ໄດ້ເກັບສະຕັອກ</span></label>
               <label>ຈຳນວນສະຕັອກ (ສຳລັບພ້ອມສົ່ງ)<input name="stock" type="number" min="0" step="1" value="0" required /></label>
               <label class="span-2">ລາຍລະອຽດ<textarea name="description" rows="2" placeholder="ບອກຮຸ່ນ, ສີ, ວັດສະດຸ ຫຼື ລາຍລະອຽດອື່ນ..."></textarea></label>
@@ -164,7 +233,7 @@
               <div class="price-preview"><span>ລາຄາຂາຍທີ່ໄດ້</span><strong id="calculatedPrice">0 ₭</strong><small id="profitPreview">ກຳໄລ 0 ₭ / ຊິ້ນ</small></div>
               <div class="span-2 form-actions"><button id="cancelProductForm" class="secondary-button" type="button">ຍົກເລີກ</button><button class="primary-button" type="submit">ບັນທຶກສິນຄ້າ</button></div>
             </form>
-          </div>
+          </div></div>
           <div id="managerProducts" class="manager-products"></div>
         </section>
 
@@ -200,6 +269,7 @@
   </section>
 
   <div id="toast" class="toast hidden" role="status"></div>
+  <script src="supabase-js.js" defer></script>
   <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -13,5 +13,5 @@
 // ຫ້າມໃຊ້ "service_role key" ໃນໄຟລ໌ນີ້ເດັດຂາດ (ອັນນັ້ນເປັນຄວາມລັບ ໃຫ້ສິດເຕັມ)
 // ===================================================================
 
-export const supabaseUrl = "ໃສ່ຄ່າຂອງທ່ານ https://xxxxxxxx.supabase.co";
-export const supabaseAnonKey = "ໃສ່ຄ່າຂອງທ່ານ-anon-public-key";
+export const supabaseUrl = "https://fsizqnygcklqlxuopbcc.supabase.co";
+export const supabaseAnonKey = "sb_publishable_VEQanPPR9Y-RLxS_t2SIhw_-l7BpOj1";
