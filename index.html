@@ -33,7 +33,7 @@
   <link rel="preload" as="font" type="font/woff2" href="fonts/phetsarath-lao-400-normal.woff2" crossorigin />
   <link rel="preload" as="image" href="banner-640.webp" imagesrcset="banner-640.webp 640w, banner-1000.webp 1000w, banner-1290.webp 1290w" imagesizes="(max-width:670px) 100vw, (max-width:1200px) 92vw, 1170px" fetchpriority="high" />
   <link rel="preconnect" href="https://fsizqnygcklqlxuopbcc.supabase.co" crossorigin />
-  <link rel="stylesheet" href="style.css?v=13" />
+  <link rel="stylesheet" href="style.css?v=14" />
 </head>
 <body>
   <div class="app-shell">
@@ -115,28 +115,32 @@
       <div class="checkout-layout">
         <form id="checkoutForm" class="form-stack">
           <p class="eyebrow">ຂັ້ນຕອນສຸດທ້າຍ</p><h2 id="checkoutTitle">ຂໍ້ມູນການສັ່ງຊື້</h2>
+
+          <fieldset class="delivery-choice">
+            <legend>ຮັບສິນຄ້າແບບໃດ?</legend>
+            <label class="big-radio"><input type="radio" name="deliveryMethod" value="pickup" checked />
+              <span><b>🏬 ຮັບເອງທີ່ຮ້ານ</b><small>ບໍ່ຕ້ອງປ້ອນຫຍັງເພີ່ມ · ຈ່າຍຕອນຮັບເຄື່ອງ</small></span></label>
+            <label class="big-radio"><input type="radio" name="deliveryMethod" value="ship" />
+              <span><b>🚚 ໃຫ້ຈັດສົ່ງໃຫ້</b><small>ເລືອກບໍລິສັດຂົນສົ່ງ ແລະ ວິທີຈ່າຍເງິນ</small></span></label>
+          </fieldset>
+
           <div class="two-fields">
             <label>ຊື່ຜູ້ຮັບ<input name="customerName" placeholder="ຊື່-ນາມສະກຸນ" required /></label>
             <label>ເບີໂທ<input name="phone" inputmode="tel" placeholder="020 xxxx xxxx" required /></label>
           </div>
-          <label>ທີ່ຢູ່ສົ່ງສິນຄ້າ<textarea name="address" rows="2" placeholder="ບ້ານ, ເມືອງ, ແຂວງ"></textarea></label>
-          <div class="two-fields">
-            <label>ສາຂາຂົນສົ່ງ<input name="transportBranch" placeholder="ຕົວຢ່າງ: ຮຸ່ງອາລຸນ ສາຂາ..." /></label>
-            <label>ວິທີຮັບສິນຄ້າ
-              <select name="deliveryMethod"><option value="ship">ໃຫ້ສົ່ງໃຫ້</option><option value="pickup">ຮັບເອງທີ່ຮ້ານ</option></select>
+
+          <div id="shipFields" class="ship-fields hidden">
+            <label>ບໍລິສັດ / ສາຂາຂົນສົ່ງ
+              <select name="courier" id="courierSelect"></select>
             </label>
+            <label>ທີ່ຢູ່ສົ່ງສິນຄ້າ <span class="optional">(ບ້ານ, ເມືອງ, ແຂວງ)</span><textarea name="address" rows="2" placeholder="ບ້ານ, ເມືອງ, ແຂວງ"></textarea></label>
+            <fieldset class="payment-choice"><legend>ວິທີຊຳລະເງິນ</legend>
+              <label><input type="radio" name="paymentMethod" value="cod" checked /> ເກັບເງິນປາຍທາງ</label>
+              <label><input type="radio" name="paymentMethod" value="transfer" /> ໂອນເງິນລ່ວງໜ້າ</label>
+            </fieldset>
           </div>
-          <label>ໝາຍເຫດ <span class="optional">(ບໍ່ຕ້ອງໃສ່ກໍໄດ້)</span><textarea name="note" rows="2" placeholder="ເຊັ່ນ ສີ, ຮຸ່ນໂທລະສັບ, ເວລາສະດວກ..."></textarea></label>
-          <fieldset class="payment-choice"><legend>ວິທີຊຳລະເງິນ</legend>
-            <label><input type="radio" name="paymentMethod" value="cod" checked /> ເກັບເງິນປາຍທາງ</label>
-            <label><input type="radio" name="paymentMethod" value="transfer" /> ໂອນເງິນ</label>
-            <label><input type="radio" name="paymentMethod" value="pickup" /> ຈ່າຍຕອນຮັບທີ່ຮ້ານ</label>
-          </fieldset>
-          <div id="transferFields" class="transfer-fields hidden">
-            <div id="paymentQrBox" class="qr-box"></div>
-            <p id="paymentAccount" class="payment-account"></p>
-            <label>ອັບໂຫຼດໃບໂອນ <span class="optional">(ຖ້າໂອນແລ້ວ)</span><input id="receiptInput" name="receipt" type="file" accept="image/*" /></label>
-          </div>
+
+          <label>ໝາຍເຫດ <span class="optional">(ບໍ່ຕ້ອງໃສ່ກໍໄດ້)</span><textarea name="note" rows="2" placeholder="ເຊັ່ນ ເວລາສະດວກຮັບເຄື່ອງ..."></textarea></label>
           <button class="primary-button full" type="submit">ຢືນຢັນສັ່ງຊື້</button>
         </form>
         <aside class="order-summary"><p class="eyebrow">ກວດສອບ</p><h3>ລາຍການສັ່ງຊື້</h3><div id="checkoutItems"></div><div class="total-row"><span>ລວມຈ່າຍ</span><strong id="checkoutTotal">0 ₭</strong></div></aside>
@@ -156,6 +160,24 @@
     <img id="imageViewerImg" src="" alt="" />
   </div>
 
+  <div id="transferModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="transferTitle">
+    <div class="modal-panel compact">
+      <button class="icon-button modal-close" type="button" aria-label="ປິດ">×</button>
+      <p class="eyebrow">ຂັ້ນຕອນທີ 2</p><h2 id="transferTitle">ໂອນເງິນ ແລະ ສົ່ງໃບໂອນ</h2>
+      <p class="muted" id="transferOrderNo"></p>
+      <div id="transferQrBox" class="qr-box big"></div>
+      <p id="transferAccount" class="payment-account"></p>
+      <button class="secondary-button full" type="button" id="saveQrBtn">⬇ ບັນທຶກຮູບ QR ໄວ້ໃນເຄື່ອງ</button>
+      <div class="slip-upload">
+        <p class="step-label">ໂອນແລ້ວ ໃຫ້ອັບໃບໂອນທີ່ນີ້</p>
+        <input id="slipInput" type="file" accept="image/*" />
+        <div id="slipPreview" class="image-preview"><span class="input-hint">ຍັງບໍ່ໄດ້ເລືອກໃບໂອນ</span></div>
+      </div>
+      <button class="primary-button full" type="button" id="slipSubmit">ສົ່ງໃບໂອນ ແລະ ຈົບການສັ່ງຊື້</button>
+      <button class="text-button full" type="button" id="slipLater">ໂອນທີຫຼັງ — ປິດໜ້ານີ້</button>
+    </div>
+  </div>
+
   <div id="successModal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-panel compact success-panel"><div class="success-icon">✓</div><p class="eyebrow">ສຳເລັດແລ້ວ</p><h2>ຮັບຄຳສັ່ງຊື້ແລ້ວ</h2><p id="successText" class="muted"></p><button class="primary-button full modal-close" type="button">ກັບໄປເລືອກສິນຄ້າ</button></div>
   </div>
@@ -168,6 +190,7 @@
         <button class="manager-tab" data-manager-tab="orders" type="button">▤ ອໍເດີ <b id="orderBadge">0</b></button>
         <button class="manager-tab" data-manager-tab="restock" type="button">⇪ ຕ້ອງສັ່ງສິນຄ້າ <b id="restockBadge">0</b></button>
         <button class="manager-tab" data-manager-tab="shipping" type="button">🚚 ຕ້ອງຈັດສົ່ງ <b id="shippingBadge">0</b></button>
+        <button class="manager-tab" data-manager-tab="slips" type="button">🧾 ໃບໂອນ <b id="slipBadge">0</b></button>
         <button class="manager-tab" data-manager-tab="products" type="button">◈ ສິນຄ້າ</button>
         <button class="manager-tab" data-manager-tab="categories" type="button">▱ ໝວດສິນຄ້າ</button>
         <button class="manager-tab" data-manager-tab="payment" type="button">▧ ຮັບຊຳລະ</button>
@@ -204,6 +227,14 @@
           <div id="shippingSummary" class="restock-summary"></div>
           <div id="shippingGroups" class="group-summary"></div>
           <div id="shippingList" class="orders-list"></div>
+        </section>
+
+        <section class="manager-pane hidden" data-pane="slips">
+          <div class="pane-heading"><div><h2>ໃບໂອນເງິນຈາກລູກຄ້າ</h2><p>ກວດຍອດເງິນທີ່ເຂົ້າບັນຊີກ່ອນຈັດສົ່ງທຸກເທື່ອ</p></div>
+            <div id="slipFilters" class="filter-row"></div></div>
+          <div class="warning-panel slip-warn"><b>⚠ ກະລຸນາກວດຍອດເງິນໃນບັນຊີຈິງກ່ອນສົ່ງເຄື່ອງ</b> — ໃບໂອນອາດປອມແປງໄດ້</div>
+          <div id="slipSummary" class="restock-summary"></div>
+          <div id="slipList" class="slip-list"></div>
         </section>
 
         <section class="manager-pane hidden" data-pane="products">
@@ -295,6 +326,15 @@
         <section class="manager-pane hidden" data-pane="payment">
           <div class="pane-heading"><div><h2>ຂໍ້ມູນຮັບເງິນ</h2><p>ຕັ້ງຄ່າ QR Code ສຳລັບລູກຄ້າທີ່ເລືອກໂອນເງິນ</p></div></div>
           <form id="paymentForm" class="form-card payment-form"><label>ຊື່ບັນຊີ / ຊື່ທະນາຄານ<input name="accountName" placeholder="ຕົວຢ່າງ: BCEL - ນາງ ..." /></label><label>ເລກບັນຊີ / ລາຍລະອຽດ<input name="accountNumber" placeholder="020 / ເລກບັນຊີ" /></label><label>ຮູບ QR ສຳລັບຮັບເງິນ<input name="qrImage" type="file" accept="image/*" /><span class="input-hint">ອັບໂຫຼດ QR Code ຈິງຂອງຮ້ານ</span></label><div id="paymentPreview" class="payment-preview"></div><button class="primary-button" type="submit">ບັນທຶກຂໍ້ມູນຮັບເງິນ</button></form>
+          <div class="panel" style="margin-top:16px">
+            <h3>ບໍລິສັດ / ສາຂາຂົນສົ່ງ</h3>
+            <p class="muted small-copy">ລາຍການນີ້ຈະໂຜ່ໃຫ້ລູກຄ້າເລືອກຕອນສັ່ງຊື້ — ໃສ່ຫຼາຍອັນພ້ອມກັນໄດ້ ຂັ້ນດ້ວຍຈຸດ (.)</p>
+            <div class="inline-form">
+              <label style="flex:1">ເພີ່ມ<input id="courierInput" placeholder="ຮຸ່ງອາລຸນ ສາຂາຕະຫຼາດເຊົ້າ . ມີໄຊ ສາຂາຫຼັກ 3 . ອານຸສິດ ຂົນສົ່ງ" /></label>
+              <button class="primary-button" type="button" id="courierAdd">+ ເພີ່ມ</button>
+            </div>
+            <div id="courierList" class="category-manage-list"></div>
+          </div>
         </section>
 
         <section class="manager-pane hidden" data-pane="financial">
@@ -320,7 +360,7 @@
   </section>
 
   <div id="toast" class="toast hidden" role="status"></div>
-  <script src="supabase-js.js?v=13" defer></script>
-  <script type="module" src="app.js?v=13"></script>
+  <script src="supabase-js.js?v=14" defer></script>
+  <script type="module" src="app.js?v=14"></script>
 </body>
 </html>

@@ -24,6 +24,7 @@ let authReadyOnce = false;   // ໃຊ້ຄັ້ງດຽວຕອນເປີ
 // ---------- 2) Local cache (ອັບເດດອັດຕະໂນມັດໂດຍ realtime subscriptions ຂ້າງລຸ່ມ) ----------
 const defaultProfile = { shopName: "ໂພນມະນີ", tagline: "ອາໄຫຼ່ & ເຄສໂທລະສັບ", ownerName: "", phone: "", logo: "" };
 const defaultPayment = { accountName: "", accountNumber: "", qrImage: "" };
+let couriers = [];   // ລາຍຊື່ບໍລິສັດຂົນສົ່ງ ທີ່ຜູ້ຈັດການຕັ້ງໄວ້
 
 let data = {
   profile: { ...defaultProfile },
@@ -137,6 +138,10 @@ function productModelNames(product) {
 // ຈັບຄູ່ຊື່ລຸ້ນແບບຢືດຢຸ່ນ (ບໍ່ສົນຕົວພິມ ຫຼື ຊ່ອງວ່າງ)
 const normModel = (t) => String(t || "").toLowerCase().replace(/[\s._\-()]/g, "");
 
+function productImageColors(product) {
+  const list = Array.isArray(product?.imageColors) ? product.imageColors : [];
+  return productImages(product).map((_, i) => list[i] || "");
+}
 function productColors(product) {
   return Array.isArray(product?.colors) ? product.colors.filter(Boolean) : [];
 }
@@ -156,7 +161,7 @@ function orderTotal(order) { return order.items.reduce((sum, item) => sum + item
 // Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
 // ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
 // ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
-const APP_VERSION = "13 · ແກ້ເລືອກລຸ້ນ+ສີ ຄ້າງໄວ້ພ້ອມກັນ";
+const APP_VERSION = "14 · ສັ່ງຊື້ງ່າຍ + ໂອນເງິນ + ໜ້າໃບໂອນ";
 let uploadSeq = 0;
 function safeFileName(file) {
   const raw = String(file?.name || "");
@@ -171,8 +176,28 @@ function safeFileName(file) {
   return `${Date.now()}-${++uploadSeq}-${rand}.${ext}`;
 }
 
-async function uploadImage(file, folder) {
-  if (!file) return "";
+// ຫຍໍ້ຮູບກ່ອນອັບ — ປະຢັດພື້ນທີ່ເກັບຫຼາຍເທົ່າ ແລະ ເວັບໂຫລດໄວຂຶ້ນ
+// ຮູບຈາກມືຖືມັກໃຫຍ່ 3-5 MB · ຫຼັງຫຍໍ້ເຫຼືອປະມານ 150-300 KB
+async function shrinkImage(file, maxSide = 1400, quality = 0.82) {
+  if (!file || !file.type.startsWith("image/")) return file;
+  if (file.size < 250 * 1024) return file;                 // ນ້ອຍຢູ່ແລ້ວ ບໍ່ຕ້ອງຫຍໍ້
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+    const w = Math.round(bitmap.width * scale), h = Math.round(bitmap.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    canvas.getContext("2d").drawImage(bitmap, 0, 0, w, h);
+    bitmap.close?.();
+    const blob = await new Promise(res => canvas.toBlob(res, "image/jpeg", quality));
+    if (!blob || blob.size >= file.size) return file;       // ຫຍໍ້ແລ້ວບໍ່ນ້ອຍລົງ ໃຊ້ອັນເກົ່າ
+    return new File([blob], (file.name || "photo").replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch (err) { console.warn("shrink failed, upload original:", err); return file; }
+}
+
+async function uploadImage(rawFile, folder) {
+  if (!rawFile) return "";
+  const file = await shrinkImage(rawFile);
   const path = `${folder}/${safeFileName(file)}`;
   const { error } = await supabase.storage.from("images")
     .upload(path, file, { upsert: false, contentType: file.type || undefined });
@@ -318,6 +343,7 @@ function renderCustomerShop() {
 // ---------- ໜ້າລາຍລະອຽດສິນຄ້າ ----------
 let detailState = { productId: null, imageIndex: 0, color: "", model: "" };
 let detailModelQuery = "";
+let pendingTransfer = null;   // ອໍເດີທີ່ລໍໃບໂອນ
 
 function openProductDetail(productId, keepState) {
   const product = productById(productId);
@@ -325,6 +351,7 @@ function openProductDetail(productId, keepState) {
   const imgs = productImages(product);
   const colors = productColors(product);
   const modelNames = productModelNames(product);
+  const imgColors = productImageColors(product);
   if (!keepState || String(detailState.productId) !== String(productId)) {
     detailState = { productId, imageIndex: 0, color: colors.length === 1 ? colors[0] : "",
                     model: productModelNames(product).length === 1 ? productModelNames(product)[0] : "" };
@@ -344,7 +371,8 @@ function openProductDetail(productId, keepState) {
         ${imgs.length > 1 ? `<span class="img-pager">${idx + 1} / ${imgs.length}</span>` : ""}
       </button>
       ${imgs.length > 1 ? `<div class="thumb-strip">${imgs.map((src, i) =>
-        `<button type="button" class="thumb${i === idx ? " active" : ""}" data-pick-image="${i}" aria-label="ຮູບທີ ${i + 1}"><img src="${escapeHtml(src)}" alt="" loading="lazy"></button>`).join("")}</div>` : ""}
+        `<button type="button" class="thumb${i === idx ? " active" : ""}" data-pick-image="${i}" ${imgColors[i] ? `data-image-color="${escapeHtml(imgColors[i])}"` : ""} aria-label="ຮູບທີ ${i + 1}${imgColors[i] ? ` ສີ${imgColors[i]}` : ""}">
+          <img src="${escapeHtml(src)}" alt="" loading="lazy">${imgColors[i] ? `<span class="thumb-color">${escapeHtml(imgColors[i])}</span>` : ""}</button>`).join("")}</div>` : ""}
     </div>
     <div>
       <p class="product-category">${path.length ? path.map(c => escapeHtml(c.name)).join(" · ") : "ບໍ່ມີໝວດ"}</p>
@@ -354,11 +382,10 @@ function openProductDetail(productId, keepState) {
       <p class="detail-desc">${escapeHtml(product.description || "ສິນຄ້າຄຸນນະພາບ ພ້ອມໃຫ້ເລືອກ")}</p>
       ${modelNames.length ? `<div class="color-picker" id="detailModelBox">
         <p class="picker-label">ເລືອກລຸ້ນໂທລະສັບຂອງທ່ານ ${detailState.model ? `<b>· ${escapeHtml(detailState.model)}</b>` : `<em>(ຍັງບໍ່ໄດ້ເລືອກ)</em>`}</p>
-        ${modelNames.length > 10 ? `<label class="search-box detail-model-search"><span>⌕</span><input type="search" id="detailModelSearch" placeholder="ພິມຫາລຸ້ນ ເຊັ່ນ 15 Pro" value="${escapeHtml(detailModelQuery)}"></label>` : ""}
-        <div class="color-options model-options-cust">${modelNames
-          .filter(n => !detailModelQuery || normModel(n).includes(normModel(detailModelQuery)))
-          .slice(0, 60).map(n => `<button type="button" class="color-chip${detailState.model === n ? " active" : ""}" data-pick-model="${escapeHtml(n)}">${escapeHtml(n)}</button>`).join("")}</div>
-        <small class="muted">ໃສ່ໄດ້ທັງໝົດ ${modelNames.length} ລຸ້ນ</small>
+        <select id="detailModelSelect" class="model-select">
+          <option value="">— ເລືອກລຸ້ນ (${modelNames.length} ລຸ້ນ) —</option>
+          ${modelNames.map(n => `<option value="${escapeHtml(n)}" ${detailState.model === n ? "selected" : ""}>${escapeHtml(n)}</option>`).join("")}
+        </select>
       </div>` : ""}
       ${colors.length ? `<div class="color-picker" id="detailColorBox">
         <p class="picker-label">ເລືອກສີ ${detailState.color ? `<b>· ${escapeHtml(detailState.color)}</b>` : `<em>(ຍັງບໍ່ໄດ້ເລືອກ)</em>`}</p>
@@ -406,14 +433,24 @@ function updateDetailColor() {
   box.querySelectorAll("[data-pick-color]").forEach(c =>
     c.classList.toggle("active", c.dataset.pickColor === detailState.color));
 }
+// ກົດຮູບ → ເລືອກສີໃຫ້ · ກົດສີ → ສະຫຼັບຮູບໃຫ້
+function syncImageToColor() {
+  const product = productById(detailState.productId); if (!product) return;
+  const c = productImageColors(product)[detailState.imageIndex];
+  if (c && productColors(product).includes(c)) { detailState.color = c; updateDetailColor(); }
+}
+function syncColorToImage() {
+  const product = productById(detailState.productId); if (!product) return;
+  const i = productImageColors(product).findIndex(c => c && c === detailState.color);
+  if (i > -1 && i !== detailState.imageIndex) { detailState.imageIndex = i; updateDetailImage(); }
+}
 function updateDetailModel() {
   const box = $("#detailModelBox"); if (!box) return;
+  const sel = box.querySelector("#detailModelSelect"); if (sel && sel.value !== detailState.model) sel.value = detailState.model;
   const label = box.querySelector(".picker-label");
   if (label) label.innerHTML = detailState.model
     ? `ເລືອກລຸ້ນໂທລະສັບຂອງທ່ານ <b>· ${escapeHtml(detailState.model)}</b>`
     : `ເລືອກລຸ້ນໂທລະສັບຂອງທ່ານ <em>(ຍັງບໍ່ໄດ້ເລືອກ)</em>`;
-  box.querySelectorAll("[data-pick-model]").forEach(c =>
-    c.classList.toggle("active", c.dataset.pickModel === detailState.model));
 }
 
 function openImageViewer(src) {
@@ -477,10 +514,38 @@ function renderCheckout() {
 }
 function renderPaymentDetails() {
   const payment = data.payment;
-  $("#paymentAccount").textContent = [payment.accountName, payment.accountNumber].filter(Boolean).join(" · ") || "ຮ້ານຍັງບໍ່ໄດ້ຕັ້ງຄ່າ QR Code";
-  $("#paymentQrBox").innerHTML = payment.qrImage ? `<img src="${payment.qrImage}" alt="QR Code ຮັບເງິນ">` : "<div>ຜູ້ຈັດການຈະອັບໂຫຼດ QR Code ໄວ້ບ່ອນນີ້</div>";
+  const acc = $("#transferAccount");
+  if (acc) acc.textContent = [payment.accountName, payment.accountNumber].filter(Boolean).join(" · ");
 }
-function toggleTransferFields() { const isTransfer = $("input[name=paymentMethod]:checked").value === "transfer"; $("#transferFields").classList.toggle("hidden", !isTransfer); }
+function renderCourierSelect() {
+  const sel = $("#courierSelect"); if (!sel) return;
+  const keep = sel.value;
+  sel.innerHTML = couriers.length
+    ? [`<option value="">— ເລືອກບໍລິສັດຂົນສົ່ງ —</option>`, ...couriers.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`)].join("")
+    : `<option value="">ຮ້ານຍັງບໍ່ໄດ້ໃສ່ລາຍຊື່ຂົນສົ່ງ</option>`;
+  if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+}
+function renderCourierList() {
+  const box = $("#courierList"); if (!box) return;
+  box.innerHTML = couriers.length
+    ? couriers.map((c, i) => `<div class="category-chip">${escapeHtml(c)} <button class="danger" data-courier-del="${i}" aria-label="ລຶບ">×</button></div>`).join("")
+    : `<p class="muted small-copy">ຍັງບໍ່ມີລາຍຊື່ — ລູກຄ້າຈະເລືອກຂົນສົ່ງບໍ່ໄດ້</p>`;
+}
+async function saveCouriers(list) {
+  const { error } = await supabase.from("settings").update({ couriers: list }).eq("id", "store");
+  if (error) { console.error(error); toast(`ບັນທຶກບໍ່ສຳເລັດ: ${error.message}`); return false; }
+  couriers = list; renderCourierList(); renderCourierSelect(); return true;
+}
+
+// ສະຫຼັບຊ່ອງຕາມວິທີຮັບເຄື່ອງ — ຮັບເອງທີ່ຮ້ານ = ປ້ອນແຕ່ຊື່ ແລະ ເບີໂທ
+function toggleDeliveryFields() {
+  const method = $("input[name=deliveryMethod]:checked")?.value || "pickup";
+  const ship = method === "ship";
+  $("#shipFields").classList.toggle("hidden", !ship);
+  $$("#shipFields input, #shipFields select, #shipFields textarea").forEach(el => { el.disabled = !ship; });
+  const courier = $("#courierSelect"); if (courier) courier.required = ship && couriers.length > 0;
+}
+
 
 // ລຳດັບສະຖານະອໍເດີ:
 //   new → (ກົດຮັບອໍເດີ) → ມີສະຕັອກຄົບ? → preparing (ຕັດສະຕັອກທັນທີ)
@@ -606,7 +671,7 @@ function showManager() {
   closeLayers(); $(".app-shell").classList.add("hidden"); $("#managerView").classList.remove("hidden"); renderManager(); window.scrollTo({ top: 0, behavior: "instant" });
 }
 function showShop() { $("#managerView").classList.add("hidden"); $(".app-shell").classList.remove("hidden"); renderShopProfile(); renderCustomerShop(); renderCart(); }
-function renderManager() { renderShopProfile(); renderDashboard(); renderOrders(); renderRestock(); renderShipping(); renderManagerProducts(); renderCategoriesManager(); renderPaymentForm(); renderFinancials(); renderShopProfileForm(); renderProductCategories(); }
+function renderManager() { renderShopProfile(); renderDashboard(); renderOrders(); renderRestock(); renderShipping(); renderSlips(); renderManagerProducts(); renderCategoriesManager(); renderPaymentForm(); renderFinancials(); renderShopProfileForm(); renderProductCategories(); }
 function renderDashboard() {
   const activeOrders = data.orders.filter(order => !["cancelled", "complete"].includes(order.status));
   const pendingValue = activeOrders.reduce((sum, order) => sum + orderTotal(order), 0);
@@ -681,7 +746,7 @@ function orderCard(order) {
         <p>${escapeHtml(address)}</p>
         <p>ຂົນສົ່ງ: ${escapeHtml(order.customer.transportBranch || "ບໍ່ໄດ້ລະບຸ")}<br>ຈ່າຍ: ${paymentLabel(order.paymentMethod)}</p>
         ${order.customer.note ? `<p>ໝາຍເຫດ: ${escapeHtml(order.customer.note)}</p>` : ""}
-        ${order.receipt ? `<button class="receipt-button" data-view-receipt="${escapeHtml(order.id)}">ເບິ່ງໃບໂອນ</button><img id="receipt-${escapeHtml(order.id)}" class="receipt-img hidden" src="${escapeHtml(order.receipt)}" alt="ໃບໂອນ">` : ""}
+        ${order.receipt ? `<p class="pay-warn">⚠ ລູກຄ້າແຈ້ງໂອນແລ້ວ — <b>ກວດຍອດເງິນໃນບັນຊີກ່ອນສົ່ງ</b></p><button class="receipt-button" data-view-receipt="${escapeHtml(order.id)}">ເບິ່ງໃບໂອນ</button><img id="receipt-${escapeHtml(order.id)}" class="receipt-img hidden" src="${escapeHtml(order.receipt)}" alt="ໃບໂອນ">` : ""}
       </div>
       <div><h4>ສິນຄ້າທີ່ສັ່ງ</h4><div class="order-items-mini">${itemsHtml}</div></div>
     </div>
@@ -874,6 +939,52 @@ function renderRestock() {
 }
 
 // ---- ໜ້າ “ຕ້ອງຈັດສົ່ງ” ----
+let slipRange = "today";   // today | week | all
+
+function renderSlips() {
+  const withSlip = data.orders.filter(o => o.receipt && o.status !== "cancelled");
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const weekAgo = startOfToday - 6 * 86400000;
+  const stamp = (o) => new Date(o.slipAt || o.createdAt).getTime();
+  const inRange = (o) => slipRange === "all" ? true
+    : slipRange === "week" ? stamp(o) >= weekAgo : stamp(o) >= startOfToday;
+  const shown = withSlip.filter(inRange).sort((a, b) => stamp(b) - stamp(a));
+
+  const filters = [["today", "ມື້ນີ້"], ["week", "7 ມື້"], ["all", "ທັງໝົດ"]];
+  const box = $("#slipFilters");
+  if (box) box.innerHTML = filters.map(([v, label]) => {
+    const n = withSlip.filter(o => v === "all" ? true : v === "week" ? stamp(o) >= weekAgo : stamp(o) >= startOfToday).length;
+    return `<button data-slip-range="${v}" class="${slipRange === v ? "active" : ""}">${label} (${n})</button>`;
+  }).join("");
+
+  const total = shown.reduce((sum, o) => sum + orderTotal(o), 0);
+  const done = shown.filter(o => o.status === "complete").length;
+  $("#slipSummary").innerHTML = [
+    ["ຈຳນວນໃບໂອນ", `${shown.length} ໃບ`, shown.length > 0],
+    ["ຍອດເງິນລວມ", money(total), false],
+    ["ອໍເດີສຳເລັດແລ້ວ", `${done} ອໍເດີ`, false],
+    ["ຍັງລໍດຳເນີນການ", `${shown.length - done} ອໍເດີ`, shown.length - done > 0]
+  ].map(([l, v, alert]) => `<div class="summary-card${alert ? " alert" : ""}"><span>${l}</span><strong>${v}</strong></div>`).join("");
+
+  $("#slipList").innerHTML = shown.length ? shown.map(o => `<article class="slip-card">
+      <button class="slip-thumb" type="button" data-zoom-image="${escapeHtml(o.receipt)}">
+        <img src="${escapeHtml(o.receipt)}" alt="ໃບໂອນ ${escapeHtml(o.id)}" loading="lazy">
+        <span class="zoom-hint">🔍 ກົດເບິ່ງເຕັມ</span>
+      </button>
+      <div class="slip-info">
+        <div class="slip-head"><b>${escapeHtml(o.id)}</b><span class="status-badge status-${o.status}">${statusLabel(o.status)}</span></div>
+        <p class="slip-amount">${money(orderTotal(o))}</p>
+        <p class="restock-meta">${escapeHtml(o.customer.name)} · ${escapeHtml(o.customer.phone)}<br>
+          ສົ່ງໃບໂອນ: ${dateLabel(o.slipAt || o.createdAt)}</p>
+        <div class="restock-orders">${o.items.map(it => `<span>${escapeHtml(it.name)}${it.model ? ` ${escapeHtml(it.model)}` : ""} × ${it.quantity}</span>`).join("")}</div>
+      </div>
+    </article>`).join("")
+    : `<div class="restock-empty">ຍັງບໍ່ມີໃບໂອນໃນຊ່ວງນີ້</div>`;
+
+  setBadge("#slipBadge", withSlip.filter(o => o.status === "new").length);
+}
+
 function renderShipping() {
   const orders = data.orders.filter(order => ["preparing", "shipping"].includes(order.status))
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
@@ -963,12 +1074,31 @@ function renderShopProfileForm() {
   form.shopName.value = profile.shopName || ""; form.tagline.value = profile.tagline || ""; form.ownerName.value = profile.ownerName || ""; form.phone.value = profile.phone || "";
   $("#profilePreview").innerHTML = profile.logo ? `<img src="${profile.logo}" alt="${escapeHtml(profile.shopName)}">` : `<span>${escapeHtml((profile.shopName || "P").trim().charAt(0).toUpperCase() || "P")}</span>`;
 }
-function switchManagerTab(tab) { $$(".manager-tab").forEach(button => button.classList.toggle("active", button.dataset.managerTab === tab)); $$(".manager-pane").forEach(pane => pane.classList.toggle("hidden", pane.dataset.pane !== tab)); if (tab === "dashboard") renderDashboard(); if (tab === "orders") renderOrders(); if (tab === "restock") renderRestock(); if (tab === "shipping") renderShipping(); if (tab === "products") { renderProductCategories(); renderManagerProducts(); } if (tab === "categories") renderCategoriesManager(); if (tab === "payment") renderPaymentForm(); if (tab === "financial") renderFinancials(); if (tab === "profile") renderShopProfileForm(); }
+function switchManagerTab(tab) { $$(".manager-tab").forEach(button => button.classList.toggle("active", button.dataset.managerTab === tab)); $$(".manager-pane").forEach(pane => pane.classList.toggle("hidden", pane.dataset.pane !== tab)); if (tab === "dashboard") renderDashboard(); if (tab === "orders") renderOrders(); if (tab === "restock") renderRestock(); if (tab === "shipping") renderShipping(); if (tab === "slips") renderSlips(); if (tab === "products") { renderProductCategories(); renderManagerProducts(); } if (tab === "categories") renderCategoriesManager(); if (tab === "payment") renderPaymentForm(); if (tab === "financial") renderFinancials(); if (tab === "profile") renderShopProfileForm(); }
 
 function setPriceMode() { const mode = $("#priceMode").value; $("#markupField").classList.toggle("hidden", mode !== "markup"); $("#sellPriceField").classList.toggle("hidden", mode !== "manual"); updatePricePreview(); }
 function updatePricePreview() { const cost = Number($("#costInput").value || 0); const mode = $("#priceMode").value; const markup = Number($("#markupInput").value || 0); const rawPrice = mode === "markup" ? Math.round(cost * (1 + markup / 100) / 1000) * 1000 : Number($("#sellPriceInput").value || 0); const price = Math.max(0, rawPrice); $("#calculatedPrice").textContent = money(price); const profit = price - cost; $("#profitPreview").textContent = `ກຳໄລ ${money(profit)} / ຊິ້ນ${cost ? ` (${Math.round((profit / cost) * 100)}%)` : ""}`; return price; }
+let imageColorMap = [];   // ສີຂອງແຕ່ລະຮູບໃນຟອມ
+
+// ແຖບຕົວຢ່າງຮູບ ພ້ອມຊ່ອງເລືອກສີຂອງແຕ່ລະຮູບ
+function renderPreviewStrip(existingUrls) {
+  const box = $("#productImagePreview"); if (!box) return;
+  const urls = existingUrls || previewUrls;
+  const colors = ($("#colorsInput")?.value || "").split(",").map(c => c.trim()).filter(Boolean);
+  box.innerHTML = `<div class="preview-strip">${urls.map((u, i) => `
+    <figure>
+      <img src="${escapeHtml(u)}" alt="ຮູບທີ ${i + 1}"><figcaption>${i + 1}</figcaption>
+      <select data-img-color="${i}" class="img-color-select" title="ສີຂອງຮູບນີ້">
+        <option value="">— ບໍ່ລະບຸສີ —</option>
+        ${colors.map(c => `<option value="${escapeHtml(c)}" ${imageColorMap[i] === c ? "selected" : ""}>${escapeHtml(c)}</option>`).join("")}
+      </select>
+    </figure>`).join("")}</div>
+    ${colors.length ? `<p class="muted small-copy" style="width:100%;margin:8px 0 0">ຜູກສີໃສ່ຮູບແລ້ວ ລູກຄ້າກົດຮູບ → ເລືອກສີໃຫ້ເອງ · ກົດສີ → ສະຫຼັບຮູບໃຫ້ເອງ</p>`
+      : `<p class="muted small-copy" style="width:100%;margin:8px 0 0">ພິມ “ສີທີ່ມີ” ຂ້າງລຸ່ມກ່ອນ ຈຶ່ງຈະເລືອກສີໃຫ້ແຕ່ລະຮູບໄດ້</p>`}`;
+}
+
 function setImagePreview(html) {
-  previewUrls.forEach(u => URL.revokeObjectURL(u)); previewUrls = [];
+  previewUrls.forEach(u => URL.revokeObjectURL(u)); previewUrls = []; imageColorMap = [];
   $("#productImagePreview").innerHTML = html;
   $("#multiModeBox")?.classList.add("hidden");
 }
@@ -985,9 +1115,10 @@ function openProductForm(product = null) {
     form.supplierUrl.value = product.supplierUrl || ""; form.cost.value = product.cost; form.priceMode.value = "manual"; form.sellPrice.value = product.price;
     form.colors.value = productColors(product).join(", ");
     const existing = productImages(product);
-    setImagePreview(existing.length
-      ? `<div class="preview-strip">${existing.map((u, i) => `<figure><img src="${escapeHtml(u)}" alt=""><figcaption>${i + 1}</figcaption></figure>`).join("")}</div>`
-      : `<span class="input-hint">ສິນຄ້ານີ້ຍັງບໍ່ມີຮູບ</span>`);
+    previewUrls.forEach(u => URL.revokeObjectURL(u)); previewUrls = [];
+    imageColorMap = productImageColors(product);
+    if (existing.length) renderPreviewStrip(existing);
+    else $("#productImagePreview").innerHTML = `<span class="input-hint">ສິນຄ້ານີ້ຍັງບໍ່ມີຮູບ</span>`;
   } else {
     form.saleMode.value = "onDemand"; form.stock.value = 0; form.priceMode.value = "markup"; form.markup.value = 20;
     setImagePreview(`<span class="input-hint">ຍັງບໍ່ໄດ້ເລືອກຮູບ</span>`);
@@ -1139,6 +1270,7 @@ function refreshBadges() {
   setBadge("#orderBadge", count("new"));
   setBadge("#restockBadge", restockAggregate(["needOrder"]).length);
   setBadge("#shippingBadge", count("preparing"));
+  setBadge("#slipBadge", data.orders.filter(o => o.receipt && o.status === "new").length);
 }
 async function refreshExpenses() { data.expenses = await fetchTable("expenses"); renderFinancials(); }
 async function refreshSettings() {
@@ -1146,11 +1278,13 @@ async function refreshSettings() {
   if (error) console.error("settings:", error);
   data.profile = { ...defaultProfile, ...(row?.profile || {}) };
   data.payment = { ...defaultPayment, ...(row?.payment || {}) };
+  couriers = Array.isArray(row?.couriers) ? row.couriers.filter(Boolean) : [];
+  renderCourierList(); renderCourierSelect();
   renderShopProfile(); renderShopProfileForm(); renderPaymentForm(); renderPaymentDetails();
 }
 function renderAll() {
   renderCustomerShop(); renderCart();
-  renderDashboard(); renderOrders(); renderRestock(); renderShipping(); renderManagerProducts(); renderCategoriesManager(); renderProductCategories(); renderFinancials();
+  renderDashboard(); renderOrders(); renderRestock(); renderShipping(); renderSlips(); renderManagerProducts(); renderCategoriesManager(); renderProductCategories(); renderFinancials();
 }
 // ກວດເບິ່ງວ່າຕິດຕໍ່ຖານຂໍ້ມູນໄດ້ບໍ ຕອນເປີດເວັບ — ຖ້າບໍ່ໄດ້ ໃຫ້ບອກຜູ້ໃຊ້ທັນທີ
 async function checkConnection() {
@@ -1176,22 +1310,55 @@ async function createOrderFromForm(form) {
   const lines = validCart(); if (!lines.length) return;
   const values = new FormData(form);
   const id = `OD-${String(Date.now()).slice(-7)}`;
-  const receiptFile = $("#receiptInput").files[0];
-  const receipt = await uploadImage(receiptFile, "receipts");
+  const method = values.get("deliveryMethod") || "pickup";
+  const isShip = method === "ship";
+  const payment = isShip ? (values.get("paymentMethod") || "cod") : "pickup";
+
+  if (isShip && couriers.length && !values.get("courier")) { toast("ກະລຸນາເລືອກບໍລິສັດຂົນສົ່ງ"); return; }
+
   const order = {
     id,
     status: "new",
-    customer: { name: values.get("customerName"), phone: values.get("phone"), address: values.get("address"), transportBranch: values.get("transportBranch"), deliveryMethod: values.get("deliveryMethod"), note: values.get("note") },
-    paymentMethod: values.get("paymentMethod"),
-    receipt,
-    items: lines.map(({ product, quantity, color, model }) => ({ productId: product.id, name: product.name, model: model || "", color: color || "", price: product.price, cost: product.cost, quantity, supplierUrl: product.supplierUrl || "" }))
+    customer: {
+      name: values.get("customerName"),
+      phone: values.get("phone"),
+      address: isShip ? (values.get("address") || "") : "",
+      transportBranch: isShip ? (values.get("courier") || "") : "",
+      deliveryMethod: method,
+      note: values.get("note") || ""
+    },
+    paymentMethod: payment,
+    receipt: "",
+    items: lines.map(({ product, quantity, color, model }) => ({
+      productId: product.id, name: product.name, model: model || "", color: color || "",
+      price: product.price, cost: product.cost, quantity, supplierUrl: product.supplierUrl || ""
+    }))
   };
   const { error } = await supabase.from("orders").insert(order);
   if (error) throw error;
-  // ບໍ່ຕັດສະຕັອກຢູ່ບ່ອນນີ້ອີກແລ້ວ — ຈະຕັດຕອນຜູ້ຈັດການກົດ “ຮັບອໍເດີ” (ເບິ່ງ acceptOrder)
   await refreshOrders();
+
+  const total = lines.reduce((sum, l) => sum + l.product.price * l.quantity, 0);
   cart = []; saveCart(); closeLayers();
-  $("#successText").textContent = `ເລກອໍເດີຂອງທ່ານ: ${id} · ຮ້ານຈະຕິດຕໍ່ກັບໄວ.`; $("#successModal").classList.remove("hidden");
+
+  if (payment === "transfer") {
+    // ຂັ້ນທີ 2: ໂອນເງິນ ແລ້ວສົ່ງໃບໂອນ
+    pendingTransfer = { orderId: id, total };
+    $("#transferOrderNo").innerHTML = `ເລກອໍເດີ <b>${escapeHtml(id)}</b> · ຍອດທີ່ຕ້ອງໂອນ <b>${money(total)}</b>`;
+    $("#transferQrBox").innerHTML = data.payment.qrImage
+      ? `<img id="qrImageEl" src="${escapeHtml(data.payment.qrImage)}" alt="QR ໂອນເງິນ" crossorigin="anonymous">`
+      : `<div class="muted">ຮ້ານຍັງບໍ່ໄດ້ຕັ້ງ QR — ກະລຸນາຕິດຕໍ່ຮ້ານໂດຍກົງ</div>`;
+    $("#transferAccount").textContent = [data.payment.accountName, data.payment.accountNumber].filter(Boolean).join(" · ") || "";
+    $("#saveQrBtn").classList.toggle("hidden", !data.payment.qrImage);
+    $("#slipPreview").innerHTML = `<span class="input-hint">ຍັງບໍ່ໄດ້ເລືອກໃບໂອນ</span>`;
+    $("#slipInput").value = "";
+    openLayer("#transferModal");
+  } else {
+    const how = method === "pickup" ? "ມາຮັບເຄື່ອງທີ່ຮ້ານໄດ້ເລີຍ" : "ຮ້ານຈະຈັດສົ່ງໃຫ້ໄວໆ";
+    $("#successText").textContent = `ເລກອໍເດີຂອງທ່ານ: ${id} · ຍອດ ${money(total)} · ${how}`;
+    $("#successModal").classList.remove("hidden");
+    $("#overlay").classList.remove("hidden");
+  }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1212,13 +1379,10 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   $("#customerSearch").addEventListener("input", renderCustomerShop);
-  $("#productDetailBody").addEventListener("input", event => {
-    if (event.target.id !== "detailModelSearch") return;
-    detailModelQuery = event.target.value;
-    const pos = event.target.selectionStart;
-    openProductDetail(detailState.productId, true);
-    const again = $("#detailModelSearch");
-    if (again) { again.focus(); again.setSelectionRange(pos, pos); }
+  $("#productDetailBody").addEventListener("change", event => {
+    if (event.target.id !== "detailModelSelect") return;
+    detailState.model = event.target.value;
+    updateDetailModel();
   });
   $(".image-viewer-close").addEventListener("click", closeImageViewer);
   $("#imageViewer").addEventListener("click", event => { if (event.target.id === "imageViewer") closeImageViewer(); });
@@ -1238,7 +1402,6 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#cartItems").addEventListener("click", event => { const remove = event.target.closest("[data-cart-remove]"); const change = event.target.closest("[data-cart-change]"); if (remove) { const key = cartKey(remove.dataset.cartRemove, remove.dataset.color || "", remove.dataset.model || ""); cart = cart.filter(line => cartKey(line.productId, line.color, line.model) !== key); saveCart(); renderCart(); }
     if (change) changeCart(change.dataset.productId, Number(change.dataset.cartChange), change.dataset.color || "", change.dataset.model || ""); });
   $("#checkoutButton").addEventListener("click", () => { if (!cart.length) return; closeLayers(); renderCheckout(); $("#checkoutModal").classList.remove("hidden"); });
-  $$("input[name=paymentMethod]").forEach(input => input.addEventListener("change", toggleTransferFields));
   $("#checkoutForm").addEventListener("submit", event => { event.preventDefault(); const button = event.currentTarget.querySelector("button[type=submit]"); button.disabled = true; createOrderFromForm(event.currentTarget).catch(err => { console.error(err); toast("ສັ່ງຊື້ບໍ່ສຳເລັດ ລອງໃໝ່ພາຍຫຼັງ"); }).finally(() => { button.disabled = false; }); });
 
   $("#managerButton").addEventListener("click", () => isManager() ? showManager() : openLayer("#loginModal"));
@@ -1374,18 +1537,21 @@ document.addEventListener("DOMContentLoaded", () => {
       if (old) {
         // ແກ້ໄຂ: ຮູບໃໝ່ທັບຮູບເກົ່າ ຖ້າມີການເລືອກ
         const images = urls.length ? urls : productImages(old);
-        const { error } = await supabase.from("products").update({ ...base, images, image: images[0] || "" }).eq("id", old.id);
+        const imageColors = images.map((_, i) => imageColorMap[i] || "");
+        const { error } = await supabase.from("products").update({ ...base, images, imageColors, image: images[0] || "" }).eq("id", old.id);
         if (error) throw error;
         toast("ແກ້ໄຂສິນຄ້າແລ້ວ");
       } else if (files.length > 1 && mode === "split") {
         // ແຍກ: 1 ຮູບ = 1 ສິນຄ້າ ຂໍ້ມູນອື່ນເໝືອນກັນໝົດ
-        const rows = urls.map((url, i) => ({ ...base, name: `${base.name} #${i + 1}`, images: [url], image: url }));
+        const rows = urls.map((url, i) => ({ ...base, name: `${base.name} #${i + 1}`, images: [url], imageColors: [imageColorMap[i] || ""], image: url,
+          colors: imageColorMap[i] ? [imageColorMap[i]] : base.colors }));
         const { error } = await supabase.from("products").insert(rows);
         if (error) throw error;
         toast(`ສ້າງ ${rows.length} ສິນຄ້າແຍກກັນແລ້ວ (ລາຄາ ແລະ ຂໍ້ມູນເໝືອນກັນໝົດ)`);
       } else {
         // ລວມ: ສິນຄ້າດຽວ ຫຼາຍຮູບ
-        const { error } = await supabase.from("products").insert({ ...base, images: urls, image: urls[0] || "" });
+        const { error } = await supabase.from("products").insert({ ...base, images: urls,
+          imageColors: urls.map((_, i) => imageColorMap[i] || ""), image: urls[0] || "" });
         if (error) throw error;
         toast(urls.length > 1 ? `ເພີ່ມສິນຄ້າແລ້ວ (${urls.length} ຮູບໃນບລັອກດຽວ)` : "ເພີ່ມສິນຄ້າແລ້ວ");
       }
@@ -1464,8 +1630,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const box = $("#productImagePreview"), modeBox = $("#multiModeBox");
     if (!files.length) { box.innerHTML = `<span class="input-hint">ຍັງບໍ່ໄດ້ເລືອກຮູບ</span>`; modeBox.classList.add("hidden"); return; }
     previewUrls = files.map(f => URL.createObjectURL(f));
-    box.innerHTML = `<div class="preview-strip">${previewUrls.map((u, i) =>
-      `<figure><img src="${u}" alt="ຮູບທີ ${i + 1}"><figcaption>${i + 1}</figcaption></figure>`).join("")}</div>`;
+    imageColorMap = files.map(() => "");
+    renderPreviewStrip();
     $("#multiCount").textContent = files.length;
     modeBox.classList.toggle("hidden", files.length < 2);
   });
@@ -1600,8 +1766,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const zoom = event.target.closest("[data-zoom-image]");
     const add = event.target.closest("[data-detail-add]");
     const buy = event.target.closest("[data-detail-buy]");
-    if (pickImg) { detailState.imageIndex = Number(pickImg.dataset.pickImage); return updateDetailImage(); }
-    if (pickColor) { detailState.color = pickColor.dataset.pickColor; return updateDetailColor(); }
+    if (pickImg) { detailState.imageIndex = Number(pickImg.dataset.pickImage); updateDetailImage(); return syncImageToColor(); }
+    if (pickColor) { detailState.color = pickColor.dataset.pickColor; updateDetailColor(); return syncColorToImage(); }
     const pickModel = event.target.closest("[data-pick-model]");
     if (pickModel) { detailState.model = pickModel.dataset.pickModel; return updateDetailModel(); }
     if (zoom) return openImageViewer(zoom.dataset.zoomImage);
@@ -1629,6 +1795,87 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // ---- ຈັດການໝວດສິນຄ້າ (ເພີ່ມ / ແກ້ຊື່ / ລຶບ / ໃສ່ຮູບ) ----
+  // ---- ຟອມສັ່ງຊື້: ສະຫຼັບຊ່ອງຕາມວິທີຮັບເຄື່ອງ ----
+  $$("input[name=deliveryMethod]").forEach(r => r.addEventListener("change", toggleDeliveryFields));
+  toggleDeliveryFields();
+
+  // ---- ຜູກສີໃສ່ຮູບ ໃນຟອມສິນຄ້າ ----
+  $("#colorsInput").addEventListener("input", () => { if (previewUrls.length) renderPreviewStrip(); });
+  $("#productImagePreview").addEventListener("change", event => {
+    const sel = event.target.closest("[data-img-color]"); if (!sel) return;
+    imageColorMap[Number(sel.dataset.imgColor)] = sel.value;
+  });
+
+  // ---- ບໍລິສັດຂົນສົ່ງ ----
+  $("#courierAdd").addEventListener("click", async () => {
+    const raw = $("#courierInput").value || "";
+    const names = raw.split(/[\n\r\t.,;|]+/).map(t => t.trim()).filter(Boolean);
+    if (!names.length) return toast("ຍັງບໍ່ໄດ້ໃສ່ຊື່");
+    const merged = [...couriers];
+    names.forEach(n => { if (!merged.some(c => c.toLowerCase() === n.toLowerCase())) merged.push(n); });
+    if (await saveCouriers(merged)) { $("#courierInput").value = ""; toast(`ເພີ່ມແລ້ວ ${merged.length - couriers.length + names.length} ລາຍການ`); }
+  });
+  $("#courierList").addEventListener("click", async event => {
+    const del = event.target.closest("[data-courier-del]"); if (!del) return;
+    const i = Number(del.dataset.courierDel);
+    if (!confirm(`ລຶບ “${couriers[i]}” ຖິ້ມບໍ?`)) return;
+    if (await saveCouriers(couriers.filter((_, k) => k !== i))) toast("ລຶບແລ້ວ");
+  });
+
+  // ---- ຂັ້ນຕອນໂອນເງິນ ----
+  $("#saveQrBtn").addEventListener("click", async () => {
+    const src = data.payment.qrImage; if (!src) return;
+    try {
+      const res = await fetch(src); const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = `QR-${data.profile.shopName || "shop"}.jpg`;
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      toast("ບັນທຶກ QR ໄວ້ໃນເຄື່ອງແລ້ວ");
+    } catch { window.open(src, "_blank"); toast("ເປີດຮູບ QR ແລ້ວ — ກົດຄ້າງເພື່ອບັນທຶກ"); }
+  });
+  $("#slipInput").addEventListener("change", event => {
+    const file = event.target.files[0];
+    const box = $("#slipPreview");
+    if (!file) { box.innerHTML = `<span class="input-hint">ຍັງບໍ່ໄດ້ເລືອກໃບໂອນ</span>`; return; }
+    box.innerHTML = `<img src="${URL.createObjectURL(file)}" alt="ໃບໂອນ">`;
+  });
+  $("#slipSubmit").addEventListener("click", async event => {
+    if (!pendingTransfer) return closeLayers();
+    const file = $("#slipInput").files[0];
+    if (!file) return toast("ກະລຸນາເລືອກຮູບໃບໂອນກ່ອນ");
+    const button = event.currentTarget; button.disabled = true; const label = button.textContent;
+    button.textContent = "ກຳລັງສົ່ງໃບໂອນ...";
+    try {
+      const url = await uploadImage(file, "receipts");
+      const { error } = await supabase.from("orders")
+        .update({ receipt: url, slipAt: new Date().toISOString() }).eq("id", pendingTransfer.orderId);
+      if (error) throw error;
+      await refreshOrders();
+      closeLayers();
+      $("#successText").textContent = `ຮັບໃບໂອນແລ້ວ · ອໍເດີ ${pendingTransfer.orderId} · ຍອດ ${money(pendingTransfer.total)} — ຮ້ານຈະກວດຍອດເງິນ ແລ້ວຈັດສົ່ງໃຫ້ໄວໆ`;
+      $("#successModal").classList.remove("hidden"); $("#overlay").classList.remove("hidden");
+      pendingTransfer = null;
+    } catch (err) { console.error(err); toast(`ສົ່ງໃບໂອນບໍ່ສຳເລັດ: ${err.message || err}`); }
+    finally { button.disabled = false; button.textContent = label; }
+  });
+  $("#slipLater").addEventListener("click", () => {
+    closeLayers();
+    if (pendingTransfer) {
+      $("#successText").textContent = `ບັນທຶກອໍເດີ ${pendingTransfer.orderId} ແລ້ວ · ຍອດ ${money(pendingTransfer.total)} — ໂອນແລ້ວຕິດຕໍ່ຮ້ານເພື່ອສົ່ງໃບໂອນ`;
+      $("#successModal").classList.remove("hidden"); $("#overlay").classList.remove("hidden");
+      pendingTransfer = null;
+    }
+  });
+
+  // ---- ກັ່ນຕອງໜ້າໃບໂອນ ----
+  $("#slipFilters").addEventListener("click", event => {
+    const b = event.target.closest("[data-slip-range]"); if (!b) return;
+    slipRange = b.dataset.slipRange; renderSlips();
+  });
+  $("#slipList").addEventListener("click", event => {
+    const zoom = event.target.closest("[data-zoom-image]"); if (zoom) openImageViewer(zoom.dataset.zoomImage);
+  });
+
   // ---- ຈັດການໝວດສິນຄ້າ: ເປີດເປັນຊັ້ນ · ເພີ່ມທີລະຫຼາຍ · ແກ້ຊື່ · ລຶບ ----
   $("#catMgrCrumb").addEventListener("click", event => {
     const goto = event.target.closest("[data-catmgr-goto]"); if (!goto) return;

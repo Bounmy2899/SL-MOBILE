@@ -562,3 +562,60 @@
   .cat-manager .picker-actions{width:100%}
   .cat-manager .primary-button{width:100%}
 }
+
+/* ============ ຮອບທີ 7: ສັ່ງຊື້ງ່າຍ · ໂອນເງິນ · ໃບໂອນ ============ */
+
+/* --- ເລືອກວິທີຮັບເຄື່ອງ (ໃຫຍ່ ກົດງ່າຍ) --- */
+.delivery-choice{display:grid;gap:9px;border:1px solid var(--line);border-radius:13px;padding:13px;background:#f7faf8;margin:0}
+.delivery-choice legend{font-size:12px;font-weight:700;color:var(--green-dark);padding:0 6px}
+.big-radio{display:flex;gap:11px;align-items:flex-start;padding:12px 13px;border:1px solid var(--line);border-radius:11px;background:#fff;cursor:pointer}
+.big-radio:has(input:checked){border-color:var(--green);background:var(--green-pale);box-shadow:0 0 0 1px var(--green) inset}
+.big-radio input{margin-top:3px;flex:0 0 auto;width:17px;height:17px}
+.big-radio b{display:block;font-size:14px}
+.big-radio small{display:block;color:var(--muted);font-size:12px;line-height:1.55;margin-top:2px}
+.ship-fields{display:grid;gap:13px;border-left:3px solid var(--green);padding-left:13px;margin-top:2px}
+.ship-fields select{height:44px;border:1px solid var(--line);border-radius:11px;padding:0 12px;background:#fff;font:inherit;font-size:14px;width:100%}
+
+/* --- ໜ້າໂອນເງິນ --- */
+.qr-box.big{min-height:230px;display:grid;place-items:center;padding:14px;background:#fff;border:1px solid var(--line);border-radius:13px;margin:12px 0}
+.qr-box.big img{max-width:270px;width:100%;height:auto;border-radius:8px}
+.slip-upload{margin:16px 0 12px;padding-top:14px;border-top:1px dashed var(--line)}
+.step-label{margin:0 0 8px;font-size:13px;font-weight:700;color:var(--green-dark)}
+.slip-upload .image-preview{min-height:120px;margin-top:9px}
+.slip-upload .image-preview img{max-height:190px}
+#slipLater{margin-top:7px;color:var(--muted);font-weight:400;font-size:13px}
+
+/* --- ໜ້າໃບໂອນ (ຫຼັງບ້ານ) --- */
+.slip-warn{background:#fff8e6;border:1px solid #ecd9a4;border-radius:11px;padding:11px 13px;margin-bottom:14px;font-size:13px;color:#7a5c10}
+.slip-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.slip-card{display:grid;grid-template-columns:104px 1fr;gap:11px;padding:11px;border:1px solid var(--line);border-radius:13px;background:#fff}
+.slip-thumb{position:relative;width:104px;height:132px;border:0;padding:0;border-radius:10px;overflow:hidden;background:var(--green-pale);cursor:zoom-in}
+.slip-thumb img{width:100%;height:100%;object-fit:cover}
+.slip-thumb .zoom-hint{position:absolute;left:4px;bottom:4px;background:rgba(0,0,0,.6);color:#fff;font-size:9px;border-radius:5px;padding:2px 5px}
+.slip-info{min-width:0}
+.slip-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
+.slip-amount{margin:0 0 5px;font-family:"DM Sans","Phetsarath","Noto Sans Lao",sans-serif;font-size:19px;font-weight:700;color:var(--green-dark)}
+.pay-warn{margin:8px 0;padding:8px 10px;background:#fff8e6;border:1px solid #ecd9a4;border-radius:9px;font-size:12px;color:#7a5c10;line-height:1.55}
+
+/* --- ເລືອກສີໃຫ້ແຕ່ລະຮູບ (ຟອມສິນຄ້າ) --- */
+.preview-strip figure{width:110px}
+.img-color-select{width:110px;margin-top:5px;height:31px;border:1px solid var(--line);border-radius:8px;background:#fff;font:inherit;font-size:11px;padding:0 5px}
+.thumb-color{position:absolute;left:2px;bottom:2px;right:2px;background:rgba(0,0,0,.62);color:#fff;font-size:9px;font-weight:700;border-radius:4px;padding:1px 3px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.thumb{position:relative}
+
+/* --- dropdown ເລືອກລຸ້ນ (ຝັ່ງລູກຄ້າ) --- */
+.model-select{width:100%;height:46px;border:1px solid var(--line);border-radius:11px;padding:0 13px;background:#fff;font:inherit;font-size:15px;font-weight:700;color:var(--ink)}
+.model-select:focus{outline:2px solid var(--green);outline-offset:1px}
+
+@media (max-width:670px){
+  .big-radio{padding:10px 11px}
+  .big-radio b{font-size:13px}
+  .big-radio small{font-size:11px}
+  .ship-fields{padding-left:9px;gap:11px}
+  .slip-list{grid-template-columns:1fr}
+  .slip-card{grid-template-columns:82px 1fr;padding:9px}
+  .slip-thumb{width:82px;height:104px}
+  .slip-amount{font-size:17px}
+  .qr-box.big img{max-width:220px}
+  .preview-strip figure,.img-color-select{width:96px}
+}
