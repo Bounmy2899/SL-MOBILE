@@ -33,7 +33,7 @@
   <link rel="preload" as="font" type="font/woff2" href="fonts/phetsarath-lao-400-normal.woff2" crossorigin />
   <link rel="preload" as="image" href="banner-640.webp" imagesrcset="banner-640.webp 640w, banner-1000.webp 1000w, banner-1290.webp 1290w" imagesizes="(max-width:670px) 100vw, (max-width:1200px) 92vw, 1170px" fetchpriority="high" />
   <link rel="preconnect" href="https://fsizqnygcklqlxuopbcc.supabase.co" crossorigin />
-  <link rel="stylesheet" href="style.css?v=11" />
+  <link rel="stylesheet" href="style.css?v=12" />
 </head>
 <body>
   <div class="app-shell">
@@ -229,25 +229,11 @@
               </fieldset>
               <fieldset class="span-2 model-picker">
                 <legend>ລຸ້ນທີ່ໃສ່ໄດ້ <b id="modelCount">0</b> ລຸ້ນ</legend>
-                <p class="muted small-copy">ຕິກເລືອກລຸ້ນທີ່ເຄສ/ສິນຄ້ານີ້ໃສ່ໄດ້ — ລູກຄ້າຈະເຫັນລາຍການນີ້ ແລະ ຄົ້ນຫາຕາມລຸ້ນໄດ້</p>
+                <p class="muted small-copy">ຕິກເລືອກລຸ້ນທີ່ສິນຄ້ານີ້ໃສ່ໄດ້ — ຢາກເພີ່ມລຸ້ນໃໝ່ ໃຫ້ໄປທີ່ແທັບ <b>ໝວດສິນຄ້າ</b></p>
                 <div class="model-tools">
                   <label class="search-box model-search"><span>⌕</span><input id="modelSearch" type="search" placeholder="ພິມຫາລຸ້ນ ເຊັ່ນ 15 Pro" /></label>
                   <button type="button" class="small-button" id="modelClear">ລ້າງທັງໝົດ</button>
-                  <button type="button" class="small-button" id="modelPasteToggle">📋 ວາງລາຍການຈາກ Excel / Word</button>
-                </div>
-                <div id="modelPasteBox" class="paste-box hidden">
-                  <textarea id="modelPasteInput" rows="3" placeholder="ວາງລາຍການລຸ້ນທີ່ນີ້ — ຂັ້ນແຕ່ລະລຸ້ນດ້ວຍ ຈຸດ (.) ຈຸດພາກ (,) ຫຼື ຂຶ້ນແຖວໃໝ່&#10;ຕົວຢ່າງ:  iPhone 8 . iPhone 9 . Samsung S24"></textarea>
-                  <div class="paste-actions">
-                    <button type="button" class="primary-button" id="modelPasteApply">ນຳໃຊ້ (ຕິກທີ່ມີຢູ່ແລ້ວ)</button>
-                    <button type="button" class="secondary-button" id="modelPasteCancel">ຍົກເລີກ</button>
-                  </div>
-                  <p id="modelPasteResult" class="paste-result"></p>
-                  <div id="modelAddMissing" class="add-missing hidden">
-                    <label>ເພີ່ມລຸ້ນທີ່ຍັງບໍ່ມີ ເຂົ້າໃນກຸ່ມ
-                      <select id="modelAddGroup"></select>
-                    </label>
-                    <button type="button" class="primary-button" id="modelAddApply">+ ເພີ່ມ ແລະ ຕິກໃຫ້ເລີຍ</button>
-                  </div>
+
                 </div>
                 <div id="modelList" class="model-list"></div>
               </fieldset>
@@ -284,15 +270,26 @@
 
         <section class="manager-pane hidden" data-pane="categories">
           <div class="pane-heading"><div><h2>ໝວດສິນຄ້າ</h2><p>ສ້າງໝວດໃຫ້ລູກຄ້າເລືອກເບິ່ງງ່າຍ</p></div></div>
-          <form id="categoryForm" class="inline-form">
-            <label>ເພີ່ມເຂົ້າໃນ<select name="parentId" id="categoryParent"></select></label>
-            <label>ຊື່ໝວດ / ຮຸ່ນ<input name="name" placeholder="ຕົວຢ່າງ: iPhone 18 Pro Max" required /></label>
-            <label>ໄອຄອນ <span class="optional">(ໝວດໃຫຍ່)</span><input name="icon" id="categoryIcon" maxlength="4" placeholder="🛡️" /></label>
-            <button class="primary-button" type="submit">+ ເພີ່ມ</button>
-          </form>
-          <p class="muted small-copy">ໝວດໃຫຍ່ສາມາດໃສ່ຮູບໄດ້ — ກົດ 🖼 ໃສ່ແຖວຂອງໝວດນັ້ນ. ທຸກຊັ້ນ ເພີ່ມ / ແກ້ຊື່ / ລຶບ ໄດ້ໝົດ.</p>
+          <div class="cat-manager">
+            <div class="picker-bar">
+              <div class="picker-crumb" id="catMgrCrumb"></div>
+              <div class="picker-actions">
+                <button type="button" class="primary-button" id="catMgrAddToggle">+ ເພີ່ມໃນຊັ້ນນີ້</button>
+              </div>
+            </div>
+            <div id="catMgrAddBox" class="paste-box hidden">
+              <p class="add-here" id="catMgrAddWhere"></p>
+              <textarea id="catMgrInput" rows="3" placeholder="ໃສ່ຫຼາຍອັນພ້ອມກັນໄດ້ — ຂັ້ນດ້ວຍ ຈຸດ (.) ຈຸດພາກ (,) ຫຼື ຂຶ້ນແຖວໃໝ່&#10;ຕົວຢ່າງ:  Galaxy A1 . Galaxy A2 . Galaxy A3 . Galaxy A4"></textarea>
+              <label id="catMgrIconWrap" class="icon-field">ໄອຄອນ <span class="optional">(ສະເພາະໝວດໃຫຍ່)</span><input id="catMgrIcon" maxlength="4" placeholder="🛡️" /></label>
+              <div class="paste-actions">
+                <button type="button" class="primary-button" id="catMgrAddApply">+ ເພີ່ມທັງໝົດ</button>
+                <button type="button" class="secondary-button" id="catMgrAddCancel">ຍົກເລີກ</button>
+              </div>
+              <p id="catMgrAddResult" class="paste-result"></p>
+            </div>
+            <div id="catMgrList" class="picker-folders"></div>
+          </div>
           <input id="categoryImageInput" type="file" accept="image/*" class="hidden" />
-          <div id="categoryTree" class="category-tree"></div>
         </section>
 
         <section class="manager-pane hidden" data-pane="payment">
@@ -323,7 +320,7 @@
   </section>
 
   <div id="toast" class="toast hidden" role="status"></div>
-  <script src="supabase-js.js?v=11" defer></script>
-  <script type="module" src="app.js?v=11"></script>
+  <script src="supabase-js.js?v=12" defer></script>
+  <script type="module" src="app.js?v=12"></script>
 </body>
 </html>

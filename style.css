@@ -538,3 +538,27 @@
   .picker-panel{max-height:290px}
   .cat-picker-btn{min-height:42px;font-size:13px;padding:9px 11px}
 }
+
+/* --- ຕົວຈັດການໝວດສິນຄ້າ (ເປີດເປັນຊັ້ນ) --- */
+.cat-manager{border:1px solid var(--line);border-radius:13px;background:#fff;overflow:hidden;margin-top:12px}
+.cat-manager .picker-bar{background:var(--green-pale);border-bottom:1px solid var(--line)}
+.cat-manager .primary-button{min-height:36px;padding:8px 14px;font-size:13px}
+.cat-row{display:grid;grid-template-columns:1fr auto;align-items:center;gap:6px;border-bottom:1px solid var(--line)}
+.cat-row:last-child{border-bottom:0}
+.cat-row-main{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:10px;
+  padding:12px 13px;border:0;background:transparent;text-align:left;width:100%;min-width:0}
+.cat-row-main:hover{background:#f7faf8}
+.cat-row .node-tools{padding-right:9px}
+.cat-manager .picker-folders{display:block;padding:0;gap:0}
+.cat-manager .paste-box{margin:11px;border-radius:11px}
+.add-here{margin:0 0 9px;font-size:13px;color:var(--muted)}
+.add-here b{color:var(--green-dark)}
+.icon-field{display:grid;gap:5px;margin-top:9px;font-size:12px;font-weight:700}
+.icon-field input{width:88px;height:38px;text-align:center;font-size:19px;border:1px solid var(--line);border-radius:9px;background:#fff}
+
+@media (max-width:670px){
+  .cat-row-main{padding:10px;gap:7px}
+  .cat-manager .picker-bar{flex-direction:column;align-items:stretch}
+  .cat-manager .picker-actions{width:100%}
+  .cat-manager .primary-button{width:100%}
+}
