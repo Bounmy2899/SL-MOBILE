@@ -35,9 +35,8 @@ let data = {
 };
 
 let cart = readJson("phonemani-cart", []);
-let navL1 = null;   // ໝວດໃຫຍ່ທີ່ເລືອກຢູ່ (null = ສະແດງບັດໝວດໃຫຍ່)
-let navL2 = null;   // iPhone / Android
-let navL3 = null;   // ຮຸ່ນ
+let navPath = [];   // ເສັ້ນທາງໝວດທີ່ກຳລັງເບິ່ງ (ເລິກເທົ່າໃດກໍໄດ້)
+let navLeaf = null; // ລຸ້ນ (ໃບສຸດທ້າຍ) ທີ່ເລືອກກັ່ນຕອງຢູ່
 let activeOrderFilter = "all";
 let restockFilter = "all";
 let manageCategoryFilter = "all";
@@ -158,7 +157,7 @@ function orderTotal(order) { return order.items.reduce((sum, item) => sum + item
 // Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
 // ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
 // ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
-const APP_VERSION = "10 · ເພີ່ມລຸ້ນໄດ້ໃນຟອມ + ຫຼັງບ້ານກະທັດຮັດ";
+const APP_VERSION = "11 · ເລືອກໝວດ-ລຸ້ນເປັນຊັ້ນ + ລູກຄ້າເລືອກລຸ້ນໄດ້";
 let uploadSeq = 0;
 function safeFileName(file) {
   const raw = String(file?.name || "");
@@ -221,55 +220,56 @@ function renderCustomerShop() {
   if (loadErrorShown && !data.products.length) return;
   const query = $("#customerSearch").value.trim().toLowerCase();
   const grid = $("#catGrid"), chips = $("#catChips"), crumb = $("#catBreadcrumb");
-
-  // ຄົ້ນຫາ → ຂ້າມການນຳທາງ ຄົ້ນທົ່ວຮ້ານເລີຍ
   const searching = query.length > 0;
 
-  // ---- ເສັ້ນທາງ (breadcrumb) ----
-  if (navL1 && !searching) {
+  // ---- ເສັ້ນທາງ (ເລິກເທົ່າໃດກໍໄດ້) ----
+  if (navPath.length && !searching) {
     const parts = [`<button type="button" data-cat-goto="root">ໜ້າຫຼັກຮ້ານ</button>`];
-    [navL1, navL2, navL3].filter(Boolean).forEach((id, i, arr) => {
+    navPath.forEach((id, i) => {
       const cat = catById(id); if (!cat) return;
-      parts.push(i === arr.length - 1
-        ? `<span aria-current="page">${escapeHtml(cat.name)}</span>`
-        : `<button type="button" data-cat-goto="${cat.id}">${escapeHtml(cat.name)}</button>`);
+      const last = i === navPath.length - 1 && !navLeaf;
+      parts.push(last ? `<span aria-current="page">${escapeHtml(cat.name)}</span>`
+                      : `<button type="button" data-cat-goto="${cat.id}">${escapeHtml(cat.name)}</button>`);
     });
+    if (navLeaf) { const leaf = catById(navLeaf); if (leaf) parts.push(`<span aria-current="page">${escapeHtml(leaf.name)}</span>`); }
     crumb.innerHTML = parts.join('<i aria-hidden="true">›</i>');
     crumb.classList.remove("hidden");
   } else { crumb.innerHTML = ""; crumb.classList.add("hidden"); }
 
-  // ---- ເລືອກວ່າຈະສະແດງບັດໝວດ ຫຼື ຊິບຮຸ່ນ ----
-  let showProducts = [];
   grid.innerHTML = ""; grid.classList.add("hidden");
   chips.innerHTML = ""; chips.classList.add("hidden");
+  let showProducts = [];
 
   if (searching) {
     showProducts = data.products;
-  } else if (!navL1) {
-    // ຊັ້ນ 1 — ບັດໝວດໃຫຍ່ພ້ອມໄອຄອນ
-    const roots = childrenOf(null).filter(c => productCountIn(c.id) > 0 || childrenOf(c.id).length);
-    if (roots.length) { grid.innerHTML = roots.map(catCard).join(""); grid.classList.remove("hidden"); }
-    // ສິນຄ້າທີ່ບໍ່ໄດ້ຢູ່ໝວດໃດ ຫຼື ບໍ່ມີໝວດເລີຍ → ສະແດງທັງໝົດ
-    showProducts = roots.length ? data.products.filter(pr => !pr.categoryId || !catById(pr.categoryId)) : data.products;
-  } else if (!navL2) {
-    // ຊັ້ນ 2 — iPhone / Android
-    const kids = childrenOf(navL1);
-    if (kids.length) { grid.innerHTML = kids.map(catCard).join(""); grid.classList.remove("hidden"); }
-    const ids = new Set(descendantIds(navL1));
-    showProducts = kids.length
-      ? data.products.filter(pr => String(pr.categoryId) === String(navL1))
-      : data.products.filter(pr => productInScope(pr, ids));
   } else {
-    // ຊັ້ນ 3 — ຊິບຮຸ່ນ (ສະແດງສະເພາະຮຸ່ນທີ່ມີສິນຄ້າ)
-    const models = childrenOf(navL2).filter(c => productCountIn(c.id) > 0);
-    if (models.length) {
-      chips.innerHTML = [`<button data-cat-model="all" class="${!navL3 ? "active" : ""}">ທຸກຮຸ່ນ (${productCountIn(navL2)})</button>`,
-        ...models.map(m => `<button data-cat-model="${m.id}" class="${String(navL3) === String(m.id) ? "active" : ""}">${escapeHtml(m.name)} (${productCountIn(m.id)})</button>`)].join("");
+    const currentId = navPath.length ? navPath[navPath.length - 1] : null;
+    const kids = childrenOf(currentId);
+    // ຊັ້ນເທິງສຸດ: ສະແດງເປັນບັດສະເໝີ (ໃຫ້ເຫັນໄອຄອນ ແລະ ກົດເຂົ້າໄດ້)
+    // ຊັ້ນລຶກລົງໄປ: ອັນທີ່ຍັງມີລູກ = ບັດ · ອັນທີ່ບໍ່ມີລູກ = ຊິບໃຫ້ກັ່ນຕອງ
+    const atRoot = currentId == null;
+    const branches = atRoot ? kids : kids.filter(k => childrenOf(k.id).length);
+    const leaves   = atRoot ? [] : kids.filter(k => !childrenOf(k.id).length && productCountIn(k.id) > 0);
+    const showBranches = branches.filter(k => productCountIn(k.id) > 0 || childrenOf(k.id).length);
+
+    if (showBranches.length) { grid.innerHTML = showBranches.map(catCard).join(""); grid.classList.remove("hidden"); }
+    if (leaves.length) {
+      const scopeCount = currentId ? productCountIn(currentId) : data.products.length;
+      chips.innerHTML = [`<button data-cat-model="all" class="${!navLeaf ? "active" : ""}">ທຸກລຸ້ນ (${scopeCount})</button>`,
+        ...leaves.map(m => `<button data-cat-model="${m.id}" class="${String(navLeaf) === String(m.id) ? "active" : ""}">${escapeHtml(m.name)} (${productCountIn(m.id)})</button>`)].join("");
       chips.classList.remove("hidden");
     }
-    const scope = navL3 || navL2;
-    const ids = new Set(descendantIds(scope));
-    showProducts = data.products.filter(pr => productInScope(pr, ids));
+
+    const scope = navLeaf || currentId;
+    if (scope == null) {
+      // ໜ້າຫຼັກ: ຖ້າມີບັດໝວດ ໃຫ້ສະແດງສະເພາະສິນຄ້າທີ່ບໍ່ໄດ້ຢູ່ໝວດໃດ
+      showProducts = showBranches.length
+        ? data.products.filter(pr => !pr.categoryId || !catById(pr.categoryId))
+        : data.products;
+    } else {
+      const ids = new Set(descendantIds(scope));
+      showProducts = data.products.filter(pr => productInScope(pr, ids));
+    }
   }
 
   // ---- ກັ່ນຕອງດ້ວຍຄຳຄົ້ນຫາ ----
@@ -317,7 +317,8 @@ function renderCustomerShop() {
 }
 
 // ---------- ໜ້າລາຍລະອຽດສິນຄ້າ ----------
-let detailState = { productId: null, imageIndex: 0, color: "" };
+let detailState = { productId: null, imageIndex: 0, color: "", model: "" };
+let detailModelQuery = "";
 
 function openProductDetail(productId, keepState) {
   const product = productById(productId);
@@ -326,7 +327,9 @@ function openProductDetail(productId, keepState) {
   const colors = productColors(product);
   const modelNames = productModelNames(product);
   if (!keepState || String(detailState.productId) !== String(productId)) {
-    detailState = { productId, imageIndex: 0, color: colors.length === 1 ? colors[0] : "" };
+    detailState = { productId, imageIndex: 0, color: colors.length === 1 ? colors[0] : "",
+                    model: productModelNames(product).length === 1 ? productModelNames(product)[0] : "" };
+    detailModelQuery = "";
   }
   const idx = Math.min(detailState.imageIndex, Math.max(0, imgs.length - 1));
   const main = imgs[idx];
@@ -350,9 +353,13 @@ function openProductDetail(productId, keepState) {
       <strong class="detail-price">${money(product.price)}</strong>
       <span class="product-stock">${stockText(product)}</span>
       <p class="detail-desc">${escapeHtml(product.description || "ສິນຄ້າຄຸນນະພາບ ພ້ອມໃຫ້ເລືອກ")}</p>
-      ${modelNames.length ? `<div class="fits-box">
-        <p class="picker-label">ໃສ່ໄດ້ກັບ <b>${modelNames.length}</b> ລຸ້ນ</p>
-        <div class="fits-chips">${modelNames.map(n => `<span>${escapeHtml(n)}</span>`).join("")}</div>
+      ${modelNames.length ? `<div class="color-picker">
+        <p class="picker-label">ເລືອກລຸ້ນໂທລະສັບຂອງທ່ານ ${detailState.model ? `<b>· ${escapeHtml(detailState.model)}</b>` : `<em>(ຍັງບໍ່ໄດ້ເລືອກ)</em>`}</p>
+        ${modelNames.length > 10 ? `<label class="search-box detail-model-search"><span>⌕</span><input type="search" id="detailModelSearch" placeholder="ພິມຫາລຸ້ນ ເຊັ່ນ 15 Pro" value="${escapeHtml(detailModelQuery)}"></label>` : ""}
+        <div class="color-options model-options-cust">${modelNames
+          .filter(n => !detailModelQuery || normModel(n).includes(normModel(detailModelQuery)))
+          .slice(0, 60).map(n => `<button type="button" class="color-chip${detailState.model === n ? " active" : ""}" data-pick-model="${escapeHtml(n)}">${escapeHtml(n)}</button>`).join("")}</div>
+        <small class="muted">ໃສ່ໄດ້ທັງໝົດ ${modelNames.length} ລຸ້ນ</small>
       </div>` : ""}
       ${colors.length ? `<div class="color-picker">
         <p class="picker-label">ເລືອກສີ ${detailState.color ? `<b>· ${escapeHtml(detailState.color)}</b>` : `<em>(ຍັງບໍ່ໄດ້ເລືອກ)</em>`}</p>
@@ -410,10 +417,10 @@ function closeImageViewer() {
   document.body.style.overflow = "";
 }
 
-const cartKey = (productId, color) => `${productId}::${color || ""}`;
+const cartKey = (productId, color, model) => `${productId}::${color || ""}::${model || ""}`;
 function validCart() {
   cart = cart.filter(line => data.products.some(product => String(product.id) === String(line.productId)));
-  return cart.map(line => ({ ...line, color: line.color || "", product: productById(line.productId) })).filter(line => line.product);
+  return cart.map(line => ({ ...line, color: line.color || "", model: line.model || "", product: productById(line.productId) })).filter(line => line.product);
 }
 function renderCart(skipShopRender) {
   const lines = validCart(); saveCart();
@@ -423,28 +430,30 @@ function renderCart(skipShopRender) {
   $("#cartCount").textContent = count;
   $("#cartTotal").textContent = money(total);
   $("#checkoutButton").disabled = !lines.length;
-  $("#cartItems").innerHTML = lines.length ? lines.map(({ product, quantity, color }) => `<div class="cart-line"><div class="cart-thumb">${imageMarkup(product)}</div><div><h4>${escapeHtml(product.name)}</h4>${color ? `<p class="cart-color">ສີ: <b>${escapeHtml(color)}</b></p>` : ""}<p>${money(product.price)}</p><div class="quantity-control"><button data-cart-change="-1" data-product-id="${product.id}" data-color="${escapeHtml(color)}">−</button><span>${quantity}</span><button data-cart-change="1" data-product-id="${product.id}" data-color="${escapeHtml(color)}">+</button></div></div><button class="remove-cart" data-cart-remove="${product.id}" data-color="${escapeHtml(color)}" aria-label="ລຶບ">×</button></div>`).join("") : `<div class="cart-empty"><p>ກະຕ່າຍັງຫວ່າງ</p><small>ເລືອກສິນຄ້າເພື່ອເລີ່ມສັ່ງຊື້</small></div>`;
+  $("#cartItems").innerHTML = lines.length ? lines.map(({ product, quantity, color, model }) => `<div class="cart-line"><div class="cart-thumb">${imageMarkup(product)}</div><div><h4>${escapeHtml(product.name)}</h4>${model ? `<p class="cart-color">ລຸ້ນ: <b>${escapeHtml(model)}</b></p>` : ""}${color ? `<p class="cart-color">ສີ: <b>${escapeHtml(color)}</b></p>` : ""}<p>${money(product.price)}</p><div class="quantity-control"><button data-cart-change="-1" data-product-id="${product.id}" data-color="${escapeHtml(color)}" data-model="${escapeHtml(model)}">−</button><span>${quantity}</span><button data-cart-change="1" data-product-id="${product.id}" data-color="${escapeHtml(color)}" data-model="${escapeHtml(model)}">+</button></div></div><button class="remove-cart" data-cart-remove="${product.id}" data-color="${escapeHtml(color)}" data-model="${escapeHtml(model)}" aria-label="ລຶບ">×</button></div>`).join("") : `<div class="cart-empty"><p>ກະຕ່າຍັງຫວ່າງ</p><small>ເລືອກສິນຄ້າເພື່ອເລີ່ມສັ່ງຊື້</small></div>`;
 }
 // ລູກຄ້າສັ່ງໄດ້ເຖິງແມ່ນສະຕັອກເປັນ 0 — ຮ້ານຈະໄປສັ່ງມາໃຫ້ (ອໍເດີຈະເຂົ້າ “ຕ້ອງສັ່ງສິນຄ້າ”)
-function addToCart(productId, color = "") {
+function addToCart(productId, color = "", model = "") {
   const product = productById(productId);
   if (!product) return false;
+  const models = productModelNames(product);
   const colors = productColors(product);
+  if (models.length && !model) { toast("ກະລຸນາເລືອກລຸ້ນໂທລະສັບກ່ອນ"); return false; }
   if (colors.length && !color) { toast("ກະລຸນາເລືອກສີກ່ອນ"); return false; }
-  const key = cartKey(productId, color);
-  const inCart = cart.find(line => cartKey(line.productId, line.color) === key);
-  if (inCart) inCart.quantity += 1; else cart.push({ productId, color, quantity: 1 });
+  const key = cartKey(productId, color, model);
+  const inCart = cart.find(line => cartKey(line.productId, line.color, line.model) === key);
+  if (inCart) inCart.quantity += 1; else cart.push({ productId, color, model, quantity: 1 });
   saveCart(); renderCart();
-  const suffix = color ? ` (ສີ${color})` : "";
-  toast(product.stock > 0 ? `ເພີ່ມໃສ່ກະຕ່າແລ້ວ${suffix}` : `ເພີ່ມແລ້ວ${suffix} · ຮ້ານຈະສັ່ງມາໃຫ້`);
+  const bits = [model, color && `ສີ${color}`].filter(Boolean).join(" · ");
+  toast(product.stock > 0 ? `ເພີ່ມໃສ່ກະຕ່າແລ້ວ${bits ? ` (${bits})` : ""}` : `ເພີ່ມແລ້ວ${bits ? ` (${bits})` : ""} · ຮ້ານຈະສັ່ງມາໃຫ້`);
   return true;
 }
-function changeCart(productId, amount, color = "") {
-  const key = cartKey(productId, color);
-  const line = cart.find(item => cartKey(item.productId, item.color) === key);
+function changeCart(productId, amount, color = "", model = "") {
+  const key = cartKey(productId, color, model);
+  const line = cart.find(item => cartKey(item.productId, item.color, item.model) === key);
   if (!line) return;
   line.quantity += amount;
-  if (line.quantity <= 0) cart = cart.filter(item => cartKey(item.productId, item.color) !== key);
+  if (line.quantity <= 0) cart = cart.filter(item => cartKey(item.productId, item.color, item.model) !== key);
   saveCart(); renderCart();
 }
 
@@ -452,7 +461,7 @@ function openLayer(name) { $("#overlay").classList.remove("hidden"); if (name ==
 function closeLayers() { $("#overlay").classList.add("hidden"); $("#cartDrawer").classList.remove("open"); $("#cartDrawer").setAttribute("aria-hidden", "true"); $$(".modal").forEach(modal => modal.classList.add("hidden")); }
 function renderCheckout() {
   const lines = validCart(); const total = lines.reduce((sum, line) => sum + line.product.price * line.quantity, 0);
-  $("#checkoutItems").innerHTML = lines.map(line => `<div class="checkout-line"><span>${escapeHtml(line.product.name)}${line.color ? ` · ສີ${escapeHtml(line.color)}` : ""} × ${line.quantity}</span><span>${money(line.product.price * line.quantity)}</span></div>`).join("");
+  $("#checkoutItems").innerHTML = lines.map(line => `<div class="checkout-line"><span>${escapeHtml(line.product.name)}${line.model ? ` · ${escapeHtml(line.model)}` : ""}${line.color ? ` · ສີ${escapeHtml(line.color)}` : ""} × ${line.quantity}</span><span>${money(line.product.price * line.quantity)}</span></div>`).join("");
   $("#checkoutTotal").textContent = money(total); renderPaymentDetails();
 }
 function renderPaymentDetails() {
@@ -646,7 +655,7 @@ function orderCard(order) {
     const thumb = product ? imageMarkup(product) : placeholder;
     return `<div class="order-item-mini">
       <div class="order-item-thumb">${thumb}</div>
-      <span>${escapeHtml(item.name)} × ${item.quantity}${item.supplierUrl ? ` <a class="supplier-link" href="${escapeHtml(item.supplierUrl)}" target="_blank" rel="noopener">ລິ້ງຮ້ານ ↗</a>` : ""}</span>
+      <span>${escapeHtml(item.name)}${item.model ? ` · <b>${escapeHtml(item.model)}</b>` : ""}${item.color ? ` · ສີ${escapeHtml(item.color)}` : ""} × ${item.quantity}${item.supplierUrl ? ` <a class="supplier-link" href="${escapeHtml(item.supplierUrl)}" target="_blank" rel="noopener">ລິ້ງຮ້ານ ↗</a>` : ""}</span>
       <b>${money(item.price * item.quantity)}</b></div>`;
   }).join("");
   const address = order.customer.deliveryMethod === "pickup" ? "ຮັບເອງທີ່ຮ້ານ" : (order.customer.address || "ບໍ່ໄດ້ລະບຸທີ່ຢູ່");
@@ -686,20 +695,50 @@ function renderOrders() {
   });
   $("#ordersList").innerHTML = orders.length ? orders.map(orderCard).join("") : `<div class="empty-state"><h3>ບໍ່ພົບອໍເດີ</h3><p>ລອງເລືອກສະຖານະ ຫຼື ຄົ້ນຫາໃໝ່</p></div>`;
 }
+let catPickerPath = [];   // ເສັ້ນທາງໃນຕົວເລືອກໝວດສິນຄ້າ
+
+// ປ້າຍສະແດງໝວດທີ່ເລືອກຢູ່
 function renderProductCategories() {
-  const opts = [`<option value="">— ບໍ່ລະບຸໝວດ —</option>`];
-  childrenOf(null).forEach(l1 => {
-    opts.push(`<option value="${l1.id}">${escapeHtml(l1.icon || "")} ${escapeHtml(l1.name)}</option>`);
-    childrenOf(l1.id).forEach(l2 => {
-      opts.push(`<option value="${l2.id}">　└ ${escapeHtml(l2.name)} (ທົ່ວໄປ)</option>`);
-      childrenOf(l2.id).forEach(l3 =>
-        opts.push(`<option value="${l3.id}">　　└ ${escapeHtml(l2.name)} › ${escapeHtml(l3.name)}</option>`));
-    });
-  });
-  const sel = $("#productCategory"); const keep = sel.value;
-  sel.innerHTML = opts.join("");
-  if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+  const hidden = $("#productCategory"); const label = $("#catPickerLabel");
+  if (!hidden || !label) return;
+  const cat = hidden.value ? catById(hidden.value) : null;
+  label.textContent = cat ? categoryPath(cat.id).map(c => c.name).join(" › ") : "ກົດເພື່ອເລືອກໝວດ";
+  label.classList.toggle("empty", !cat);
 }
+
+// ລາຍການໃນຕົວເລືອກໝວດ (ເປີດເປັນຊັ້ນ)
+function renderCatPicker() {
+  const listBox = $("#catPickerList"), crumbBox = $("#catPickerCrumb");
+  if (!listBox) return;
+  const currentId = catPickerPath.length ? catPickerPath[catPickerPath.length - 1] : null;
+
+  const crumb = [`<button type="button" class="crumb-btn" data-catpick-goto="root">ທັງໝົດ</button>`];
+  catPickerPath.forEach((id, i) => {
+    const cat = catById(id); if (!cat) return;
+    crumb.push(`<i>›</i>` + (i === catPickerPath.length - 1
+      ? `<span>${escapeHtml(cat.name)}</span>`
+      : `<button type="button" class="crumb-btn" data-catpick-goto="${cat.id}">${escapeHtml(cat.name)}</button>`));
+  });
+  crumbBox.innerHTML = crumb.join("");
+
+  const kids = childrenOf(currentId);
+  const rows = [];
+  if (currentId) {
+    const cur = catById(currentId);
+    rows.push(`<button type="button" class="picker-folder pick-here" data-catpick-select="${currentId}">
+      <span class="pf-name">✓ ໃຊ້ “${escapeHtml(cur?.name || "")}” ເປັນໝວດ</span>
+      <span class="pf-meta">ບັນທຶກໄວ້ຊັ້ນນີ້</span></button>`);
+  }
+  kids.forEach(c => {
+    const kidCount = childrenOf(c.id).length;
+    rows.push(`<button type="button" class="picker-folder" data-catpick-${kidCount ? "open" : "select"}="${c.id}">
+      <span class="pf-name">${escapeHtml(c.icon || "")} ${escapeHtml(c.name)}</span>
+      <span class="pf-meta">${kidCount ? `${kidCount} ກຸ່ມຍ່ອຍ` : `${productCountIn(c.id)} ສິນຄ້າ`}</span>
+      <span class="pf-go">${kidCount ? "›" : "+"}</span></button>`);
+  });
+  listBox.innerHTML = rows.length ? rows.join("") : `<p class="muted small-copy" style="padding:12px">ຍັງບໍ່ມີໝວດ</p>`;
+}
+
 function renderManagerProducts() {
   const query = ($("#manageProductSearch")?.value || "").trim().toLowerCase();
   const list = data.products.filter(product => {
@@ -927,6 +966,7 @@ function openProductForm(product = null) {
   editingProductId = product?.id ?? null; const form = $("#productForm"); form.reset(); renderProductCategories();
   selectedModels = new Set(product ? productModelIds(product) : []);
   if ($("#modelSearch")) $("#modelSearch").value = "";
+  pickerPath = []; catPickerPath = []; $("#catPickerPanel")?.classList.add("hidden");
   $("#modelPasteBox")?.classList.add("hidden");
   if ($("#modelPasteInput")) $("#modelPasteInput").value = "";
   if ($("#modelPasteResult")) $("#modelPasteResult").textContent = "";
@@ -935,7 +975,7 @@ function openProductForm(product = null) {
   renderModelList();
   $("#productFormTitle").textContent = product ? "ແກ້ໄຂສິນຄ້າ" : "ເພີ່ມສິນຄ້າໃໝ່";
   if (product) {
-    form.productId.value = product.id; form.name.value = product.name; form.categoryId.value = product.categoryId;
+    form.productId.value = product.id; form.name.value = product.name; form.categoryId.value = product.categoryId || "";
     form.saleMode.value = product.saleMode || "inStock"; form.stock.value = product.stock; form.description.value = product.description || "";
     form.supplierUrl.value = product.supplierUrl || ""; form.cost.value = product.cost; form.priceMode.value = "manual"; form.sellPrice.value = product.price;
     form.colors.value = productColors(product).join(", ");
@@ -980,43 +1020,100 @@ async function addModelsToGroup(parentId, names) {
 function renderModelGroupSelect() {
   const sel = $("#modelAddGroup"); if (!sel) return;
   const keep = sel.value;
+  // ທຸກໝວດທີ່ບໍ່ແມ່ນໝວດໃຫຍ່ສຸດ ສາມາດເປັນບ່ອນໃສ່ລຸ້ນໄດ້
   const opts = [];
-  childrenOf(null).forEach(l1 => childrenOf(l1.id).forEach(l2 =>
-    opts.push(`<option value="${l2.id}">${escapeHtml(l1.icon || "")} ${escapeHtml(l1.name)} › ${escapeHtml(l2.name)}</option>`)));
+  const walk = (parentId, prefix, depth) => childrenOf(parentId).forEach(c => {
+    const label = prefix ? `${prefix} › ${c.name}` : c.name;
+    if (depth > 0) opts.push(`<option value="${c.id}">${"　".repeat(depth - 1)}${escapeHtml(label)}</option>`);
+    if (depth < 3) walk(c.id, label, depth + 1);
+  });
+  childrenOf(null).forEach(l1 => walk(l1.id, `${l1.icon || ""} ${l1.name}`, 1));
   sel.innerHTML = opts.join("");
   if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
 }
 
+let pickerPath = [];   // ເສັ້ນທາງທີ່ກຳລັງເປີດຢູ່ໃນລາຍການເລືອກລຸ້ນ
+
+// ນັບລຸ້ນ (ໃບ) ທັງໝົດພາຍໃຕ້ໝວດໜຶ່ງ
+function leavesUnder(id) {
+  const out = [];
+  const walk = (pid) => childrenOf(pid).forEach(c => {
+    const kids = childrenOf(c.id);
+    if (kids.length) walk(c.id); else out.push(c);
+  });
+  walk(id);
+  return out;
+}
+
 function renderModelList() {
+  const box = $("#modelList"); if (!box) return;
   const query = normModel($("#modelSearch")?.value || "");
-  // ສ້າງກຸ່ມຈາກໂຄງໝວດ (ກຸ່ມທີ່ຍັງບໍ່ມີລຸ້ນເລີຍ ກໍສະແດງ ເພື່ອກົດ + ເພີ່ມໄດ້)
-  const groups = new Map();
-  childrenOf(null).forEach(l1 => childrenOf(l1.id).forEach(l2 => {
-    const key = `${l1.icon || ""} ${l1.name} › ${l2.name}`;
-    const items = childrenOf(l2.id).filter(m => !query || normModel(m.name).includes(query));
-    if (query && !items.length) return;
-    groups.set(key, { parentId: l2.id, items });
-  }));
-  const box = $("#modelList");
-  if (!box) return;
-  box.innerHTML = groups.size ? [...groups.entries()].map(([label, { parentId, items }]) => {
-    const allOn = items.length && items.every(m => selectedModels.has(String(m.id)));
-    return `<div class="model-group">
-      <div class="model-group-head">
-        <b>${escapeHtml(label)}</b>
-        <span class="head-tools">
-          <button type="button" class="small-button" data-model-all="${items.map(m => m.id).join(",")}">${allOn ? "ເອົາອອກ" : "ເລືອກໝົດ"}</button>
-          <button type="button" class="small-button add" data-model-add-to="${parentId}">+ ເພີ່ມລຸ້ນ</button>
-        </span>
-      </div>
-      <div class="model-options">${items.length ? items.map(m => `
-        <label class="model-chip${selectedModels.has(String(m.id)) ? " on" : ""}">
+
+  // ---- ໂໝດຄົ້ນຫາ: ຫາທົ່ວທຸກຊັ້ນ ບໍ່ສົນເສັ້ນທາງ ----
+  if (query) {
+    const hits = [];
+    childrenOf(null).forEach(l1 => leavesUnder(l1.id).forEach(m => {
+      if (normModel(m.name).includes(query)) hits.push({ ...m, path: categoryPath(m.id).slice(0, -1).map(c => c.name).join(" › ") });
+    }));
+    box.innerHTML = hits.length ? `<div class="model-group"><div class="model-group-head"><b>ຜົນຄົ້ນຫາ ${hits.length} ລຸ້ນ</b>
+        <span class="head-tools"><button type="button" class="small-button" data-model-all="${hits.map(h => h.id).join(",")}">ເລືອກໝົດ</button></span></div>
+      <div class="model-options">${hits.slice(0, 200).map(m => `
+        <label class="model-chip${selectedModels.has(String(m.id)) ? " on" : ""}" title="${escapeHtml(m.path)}">
           <input type="checkbox" data-model-id="${m.id}" ${selectedModels.has(String(m.id)) ? "checked" : ""}>
-          <span>${escapeHtml(m.name)}</span>
-        </label>`).join("") : `<span class="muted small-copy">ຍັງບໍ່ມີລຸ້ນໃນກຸ່ມນີ້ — ກົດ “+ ເພີ່ມລຸ້ນ”</span>`}</div>
-    </div>`;
-  }).join("") : `<p class="muted small-copy">ບໍ່ພົບລຸ້ນ — ລອງພິມຄຳອື່ນ ຫຼື ໄປເພີ່ມລຸ້ນໃໝ່ທີ່ແທັບ “ໝວດສິນຄ້າ”</p>`;
-  const countEl = $("#modelCount"); if (countEl) countEl.textContent = selectedModels.size;
+          <span>${escapeHtml(m.name)}<small>${escapeHtml(m.path)}</small></span>
+        </label>`).join("")}</div></div>`
+      : `<p class="muted small-copy" style="padding:12px">ບໍ່ພົບລຸ້ນ “${escapeHtml($("#modelSearch").value)}” — ກົດ “+ ເພີ່ມ” ໃນກຸ່ມທີ່ຕ້ອງການ</p>`;
+    $("#modelCount").textContent = selectedModels.size;
+    renderModelGroupSelect();
+    return;
+  }
+
+  // ---- ໂໝດເປີດເປັນຊັ້ນ ----
+  const currentId = pickerPath.length ? pickerPath[pickerPath.length - 1] : null;
+  const kids = childrenOf(currentId);
+  // ຊັ້ນ 1-2 (ໝວດໃຫຍ່ / ກຸ່ມ ເຊັ່ນ iPhone·Android) ຖືເປັນໂຟນເດີສະເໝີ
+  // ເຖິງແມ່ນຍັງບໍ່ມີລຸ້ນຢູ່ຂ້າງໃນ ຈະໄດ້ກົດເຂົ້າໄປເພີ່ມໄດ້
+  const isFolder = (c) => childrenOf(c.id).length > 0 || categoryPath(c.id).length <= 2;
+  const branches = kids.filter(isFolder);
+  const leaves   = kids.filter(c => !isFolder(c));
+
+  // ເສັ້ນທາງ
+  const crumb = [`<button type="button" class="crumb-btn" data-picker-goto="root">ທັງໝົດ</button>`];
+  pickerPath.forEach((id, i) => {
+    const cat = catById(id); if (!cat) return;
+    crumb.push(`<i>›</i>` + (i === pickerPath.length - 1
+      ? `<span>${escapeHtml(cat.name)}</span>`
+      : `<button type="button" class="crumb-btn" data-picker-goto="${cat.id}">${escapeHtml(cat.name)}</button>`));
+  });
+
+  const allLeaves = currentId ? leavesUnder(currentId) : [];
+  const allOn = allLeaves.length && allLeaves.every(m => selectedModels.has(String(m.id)));
+
+  box.innerHTML = `
+    <div class="picker-bar">
+      <div class="picker-crumb">${crumb.join("")}</div>
+      <div class="picker-actions">
+        ${currentId ? `<button type="button" class="small-button" data-model-all="${allLeaves.map(m => m.id).join(",")}">${allOn ? "ເອົາອອກໝົດ" : `ເລືອກໝົດ (${allLeaves.length})`}</button>` : ""}
+        ${currentId ? `<button type="button" class="small-button add" data-model-add-to="${currentId}">+ ເພີ່ມ</button>` : ""}
+      </div>
+    </div>
+    ${branches.length ? `<div class="picker-folders">${branches.map(c => {
+      const n = leavesUnder(c.id).length;
+      const picked = leavesUnder(c.id).filter(m => selectedModels.has(String(m.id))).length;
+      return `<button type="button" class="picker-folder" data-picker-open="${c.id}">
+        <span class="pf-name">${escapeHtml(c.name)}</span>
+        <span class="pf-meta">${n} ລຸ້ນ${picked ? ` · ຕິກແລ້ວ ${picked}` : ""}</span>
+        <span class="pf-go">›</span></button>`;
+    }).join("")}</div>` : ""}
+    ${leaves.length ? `<div class="model-options">${leaves.map(m => `
+      <label class="model-chip${selectedModels.has(String(m.id)) ? " on" : ""}">
+        <input type="checkbox" data-model-id="${m.id}" ${selectedModels.has(String(m.id)) ? "checked" : ""}>
+        <span>${escapeHtml(m.name)}</span>
+        <button type="button" class="chip-del" data-model-del="${m.id}" title="ລຶບລຸ້ນນີ້">×</button>
+      </label>`).join("")}</div>` : ""}
+    ${!branches.length && !leaves.length ? `<p class="muted small-copy" style="padding:12px">ຍັງບໍ່ມີຫຍັງໃນນີ້ — ກົດ “+ ເພີ່ມ” ເພື່ອໃສ່ລຸ້ນ</p>` : ""}`;
+
+  $("#modelCount").textContent = selectedModels.size;
   renderModelGroupSelect();
 }
 
@@ -1126,7 +1223,7 @@ async function createOrderFromForm(form) {
     customer: { name: values.get("customerName"), phone: values.get("phone"), address: values.get("address"), transportBranch: values.get("transportBranch"), deliveryMethod: values.get("deliveryMethod"), note: values.get("note") },
     paymentMethod: values.get("paymentMethod"),
     receipt,
-    items: lines.map(({ product, quantity, color }) => ({ productId: product.id, name: product.name, color: color || "", price: product.price, cost: product.cost, quantity, supplierUrl: product.supplierUrl || "" }))
+    items: lines.map(({ product, quantity, color, model }) => ({ productId: product.id, name: product.name, model: model || "", color: color || "", price: product.price, cost: product.cost, quantity, supplierUrl: product.supplierUrl || "" }))
   };
   const { error } = await supabase.from("orders").insert(order);
   if (error) throw error;
@@ -1154,6 +1251,14 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   $("#customerSearch").addEventListener("input", renderCustomerShop);
+  $("#productDetailBody").addEventListener("input", event => {
+    if (event.target.id !== "detailModelSearch") return;
+    detailModelQuery = event.target.value;
+    const pos = event.target.selectionStart;
+    openProductDetail(detailState.productId, true);
+    const again = $("#detailModelSearch");
+    if (again) { again.focus(); again.setSelectionRange(pos, pos); }
+  });
   $(".image-viewer-close").addEventListener("click", closeImageViewer);
   $("#imageViewer").addEventListener("click", event => { if (event.target.id === "imageViewer") closeImageViewer(); });
   document.addEventListener("keydown", event => {
@@ -1169,8 +1274,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const modal = event.target.closest(".modal");
     if (modal && event.target === modal) closeLayers();
   });
-  $("#cartItems").addEventListener("click", event => { const remove = event.target.closest("[data-cart-remove]"); const change = event.target.closest("[data-cart-change]"); if (remove) { const key = cartKey(remove.dataset.cartRemove, remove.dataset.color || ""); cart = cart.filter(line => cartKey(line.productId, line.color) !== key); saveCart(); renderCart(); }
-    if (change) changeCart(change.dataset.productId, Number(change.dataset.cartChange), change.dataset.color || ""); });
+  $("#cartItems").addEventListener("click", event => { const remove = event.target.closest("[data-cart-remove]"); const change = event.target.closest("[data-cart-change]"); if (remove) { const key = cartKey(remove.dataset.cartRemove, remove.dataset.color || "", remove.dataset.model || ""); cart = cart.filter(line => cartKey(line.productId, line.color, line.model) !== key); saveCart(); renderCart(); }
+    if (change) changeCart(change.dataset.productId, Number(change.dataset.cartChange), change.dataset.color || "", change.dataset.model || ""); });
   $("#checkoutButton").addEventListener("click", () => { if (!cart.length) return; closeLayers(); renderCheckout(); $("#checkoutModal").classList.remove("hidden"); });
   $$("input[name=paymentMethod]").forEach(input => input.addEventListener("change", toggleTransferFields));
   $("#checkoutForm").addEventListener("submit", event => { event.preventDefault(); const button = event.currentTarget.querySelector("button[type=submit]"); button.disabled = true; createOrderFromForm(event.currentTarget).catch(err => { console.error(err); toast("ສັ່ງຊື້ບໍ່ສຳເລັດ ລອງໃໝ່ພາຍຫຼັງ"); }).finally(() => { button.disabled = false; }); });
@@ -1330,6 +1435,36 @@ document.addEventListener("DOMContentLoaded", () => {
     } finally { submitButton.disabled = false; submitButton.textContent = originalLabel; }
   });
 
+  // ---- ຕົວເລືອກໝວດສິນຄ້າ (ເປີດເປັນຊັ້ນ) ----
+  $("#catPickerBtn").addEventListener("click", () => {
+    const panel = $("#catPickerPanel");
+    panel.classList.toggle("hidden");
+    if (!panel.classList.contains("hidden")) {
+      const cur = $("#productCategory").value;
+      catPickerPath = cur ? categoryPath(cur).slice(0, -1).map(c => String(c.id)) : [];
+      renderCatPicker();
+    }
+  });
+  $("#catPickerClose").addEventListener("click", () => $("#catPickerPanel").classList.add("hidden"));
+  $("#catPickerPanel").addEventListener("click", event => {
+    const open = event.target.closest("[data-catpick-open]");
+    const pick = event.target.closest("[data-catpick-select]");
+    const goto = event.target.closest("[data-catpick-goto]");
+    if (open) { catPickerPath.push(open.dataset.catpickOpen); return renderCatPicker(); }
+    if (goto) {
+      const t = goto.dataset.catpickGoto;
+      if (t === "root") catPickerPath = [];
+      else { const i = catPickerPath.findIndex(id => String(id) === String(t)); if (i > -1) catPickerPath = catPickerPath.slice(0, i + 1); }
+      return renderCatPicker();
+    }
+    if (pick) {
+      $("#productCategory").value = pick.dataset.catpickSelect;
+      renderProductCategories();
+      $("#catPickerPanel").classList.add("hidden");
+      toast(`ເລືອກໝວດ: ${categoryPath(pick.dataset.catpickSelect).map(c => c.name).join(" › ")}`);
+    }
+  });
+
   // ---- ເລືອກລຸ້ນທີ່ໃສ່ໄດ້ ----
   $("#modelSearch").addEventListener("input", renderModelList);
   $("#modelClear").addEventListener("click", () => { selectedModels.clear(); renderModelList(); });
@@ -1341,6 +1476,30 @@ document.addEventListener("DOMContentLoaded", () => {
     $("#modelCount").textContent = selectedModels.size;
   });
   $("#modelList").addEventListener("click", async event => {
+    const openFolder = event.target.closest("[data-picker-open]");
+    const goto = event.target.closest("[data-picker-goto]");
+    const del = event.target.closest("[data-model-del]");
+
+    if (openFolder) { pickerPath.push(openFolder.dataset.pickerOpen); return renderModelList(); }
+    if (goto) {
+      const t = goto.dataset.pickerGoto;
+      if (t === "root") pickerPath = [];
+      else { const i = pickerPath.findIndex(id => String(id) === String(t)); if (i > -1) pickerPath = pickerPath.slice(0, i + 1); }
+      return renderModelList();
+    }
+    if (del) {
+      event.preventDefault();
+      const cat = catById(del.dataset.modelDel); if (!cat) return;
+      const used = data.products.filter(pr => String(pr.categoryId) === String(cat.id) || productModelIds(pr).includes(String(cat.id))).length;
+      if (used) return toast(`ລຶບບໍ່ໄດ້: ມີສິນຄ້າ ${used} ລາຍການໃຊ້ລຸ້ນນີ້ຢູ່`);
+      if (!confirm(`ລຶບລຸ້ນ “${cat.name}” ຖິ້ມແທ້ບໍ?`)) return;
+      const { error } = await supabase.from("categories").delete().eq("id", cat.id);
+      if (error) { console.error(error); return toast(`ລຶບບໍ່ສຳເລັດ: ${error.message}`); }
+      selectedModels.delete(String(cat.id));
+      await refreshCategories(); renderModelList(); toast("ລຶບລຸ້ນແລ້ວ");
+      return;
+    }
+
     const addTo = event.target.closest("[data-model-add-to]");
     if (addTo) {
       const parent = catById(addTo.dataset.modelAddTo);
@@ -1536,23 +1695,24 @@ document.addEventListener("DOMContentLoaded", () => {
   // ---- ນຳທາງໝວດ 3 ຊັ້ນ (ໜ້າຮ້ານ) ----
   $("#catGrid").addEventListener("click", event => {
     const card = event.target.closest("[data-cat-open]"); if (!card) return;
-    const id = card.dataset.catOpen;
-    if (!navL1) { navL1 = id; navL2 = null; navL3 = null; }
-    else if (!navL2) { navL2 = id; navL3 = null; }
+    navPath.push(card.dataset.catOpen); navLeaf = null;
     renderCustomerShop();
     $("#products").scrollIntoView({ behavior: "smooth", block: "start" });
   });
   $("#catBreadcrumb").addEventListener("click", event => {
     const button = event.target.closest("[data-cat-goto]"); if (!button) return;
     const target = button.dataset.catGoto;
-    if (target === "root") { navL1 = navL2 = navL3 = null; }
-    else if (String(target) === String(navL1)) { navL2 = navL3 = null; }
-    else if (String(target) === String(navL2)) { navL3 = null; }
+    if (target === "root") { navPath = []; navLeaf = null; }
+    else {
+      const idx = navPath.findIndex(id => String(id) === String(target));
+      if (idx > -1) navPath = navPath.slice(0, idx + 1);
+      navLeaf = null;
+    }
     renderCustomerShop();
   });
   $("#catChips").addEventListener("click", event => {
     const button = event.target.closest("[data-cat-model]"); if (!button) return;
-    navL3 = button.dataset.catModel === "all" ? null : button.dataset.catModel;
+    navLeaf = button.dataset.catModel === "all" ? null : button.dataset.catModel;
     renderCustomerShop();
   });
 
@@ -1569,9 +1729,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const buy = event.target.closest("[data-detail-buy]");
     if (pickImg) { detailState.imageIndex = Number(pickImg.dataset.pickImage); return updateDetailImage(); }
     if (pickColor) { detailState.color = pickColor.dataset.pickColor; return updateDetailColor(); }
+    const pickModel = event.target.closest("[data-pick-model]");
+    if (pickModel) { detailState.model = pickModel.dataset.pickModel; return openProductDetail(detailState.productId, true); }
     if (zoom) return openImageViewer(zoom.dataset.zoomImage);
     if (add) {
-      if (!addToCart(add.dataset.detailAdd, detailState.color)) return;
+      if (!addToCart(add.dataset.detailAdd, detailState.color, detailState.model)) return;
       const product = productById(add.dataset.detailAdd);
       const lines = cart.filter(l => String(l.productId) === String(product.id));
       const qty = lines.reduce((n, l) => n + l.quantity, 0);
@@ -1586,8 +1748,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (buy) {
       const product = productById(buy.dataset.detailBuy);
-      const already = cart.some(l => String(l.productId) === String(product.id) && (l.color || "") === (detailState.color || ""));
-      if (!already && !addToCart(buy.dataset.detailBuy, detailState.color)) return;
+      const already = cart.some(l => String(l.productId) === String(product.id) && (l.color || "") === (detailState.color || "") && (l.model || "") === (detailState.model || ""));
+      if (!already && !addToCart(buy.dataset.detailBuy, detailState.color, detailState.model)) return;
       renderCheckout(); closeLayers();
       $("#checkoutModal").classList.remove("hidden"); $("#overlay").classList.remove("hidden");
     }

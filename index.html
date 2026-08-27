@@ -33,7 +33,7 @@
   <link rel="preload" as="font" type="font/woff2" href="fonts/phetsarath-lao-400-normal.woff2" crossorigin />
   <link rel="preload" as="image" href="banner-640.webp" imagesrcset="banner-640.webp 640w, banner-1000.webp 1000w, banner-1290.webp 1290w" imagesizes="(max-width:670px) 100vw, (max-width:1200px) 92vw, 1170px" fetchpriority="high" />
   <link rel="preconnect" href="https://fsizqnygcklqlxuopbcc.supabase.co" crossorigin />
-  <link rel="stylesheet" href="style.css?v=10" />
+  <link rel="stylesheet" href="style.css?v=11" />
 </head>
 <body>
   <div class="app-shell">
@@ -253,7 +253,20 @@
               </fieldset>
               <label class="span-2">ສີທີ່ມີ <span class="optional">(ບໍ່ຕ້ອງໃສ່ກໍໄດ້)</span><input name="colors" id="colorsInput" placeholder="ຕົວຢ່າງ: ດຳ, ຂາວ, ຟ້າ, ບົວ" /><span class="input-hint">ຂັ້ນດ້ວຍເຄື່ອງໝາຍຈຸດ (,) — ລູກຄ້າຈະເລືອກສີໄດ້ຕອນສັ່ງ</span></label>
               <label>ຊື່ສິນຄ້າ<input name="name" placeholder="ຕົວຢ່າງ: ເຄສ iPhone 15 Pro" required /></label>
-              <label>ໝວດສິນຄ້າ<select name="categoryId" id="productCategory" required></select></label>
+              <div class="field cat-field">
+                <span class="field-label">ໝວດສິນຄ້າ</span>
+                <input type="hidden" name="categoryId" id="productCategory" />
+                <button type="button" id="catPickerBtn" class="cat-picker-btn">
+                  <span id="catPickerLabel">ກົດເພື່ອເລືອກໝວດ</span><span class="pf-go">›</span>
+                </button>
+                <div id="catPickerPanel" class="picker-panel hidden">
+                  <div class="picker-bar">
+                    <div class="picker-crumb" id="catPickerCrumb"></div>
+                    <div class="picker-actions"><button type="button" class="small-button" id="catPickerClose">ປິດ</button></div>
+                  </div>
+                  <div id="catPickerList" class="picker-folders"></div>
+                </div>
+              </div>
               <label>ຮູບແບບການຂາຍ<select name="saleMode" id="saleMode"><option value="onDemand">ສັ່ງຕາມອໍເດີ (ສະຕັອກ 0 ກໍຂາຍໄດ້)</option><option value="inStock">ສິນຄ້າພ້ອມສົ່ງ</option></select><span class="input-hint">ເລືອກແບບສັ່ງໃຫ້ ຖ້າຮ້ານບໍ່ໄດ້ເກັບສະຕັອກ</span></label>
               <label>ຈຳນວນສະຕັອກ (ສຳລັບພ້ອມສົ່ງ)<input name="stock" type="number" min="0" step="1" value="0" required /></label>
               <label class="span-2">ລາຍລະອຽດ<textarea name="description" rows="2" placeholder="ບອກຮຸ່ນ, ສີ, ວັດສະດຸ ຫຼື ລາຍລະອຽດອື່ນ..."></textarea></label>
@@ -310,7 +323,7 @@
   </section>
 
   <div id="toast" class="toast hidden" role="status"></div>
-  <script src="supabase-js.js?v=10" defer></script>
-  <script type="module" src="app.js?v=10"></script>
+  <script src="supabase-js.js?v=11" defer></script>
+  <script type="module" src="app.js?v=11"></script>
 </body>
 </html>
