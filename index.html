@@ -33,7 +33,7 @@
   <link rel="preload" as="font" type="font/woff2" href="fonts/phetsarath-lao-400-normal.woff2" crossorigin />
   <link rel="preload" as="image" href="banner-640.webp" imagesrcset="banner-640.webp 640w, banner-1000.webp 1000w, banner-1290.webp 1290w" imagesizes="(max-width:670px) 100vw, (max-width:1200px) 92vw, 1170px" fetchpriority="high" />
   <link rel="preconnect" href="https://fsizqnygcklqlxuopbcc.supabase.co" crossorigin />
-  <link rel="stylesheet" href="style.css?v=14" />
+  <link rel="stylesheet" href="style.css?v=16" />
 </head>
 <body>
   <div class="app-shell">
@@ -163,18 +163,18 @@
   <div id="transferModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="transferTitle">
     <div class="modal-panel compact">
       <button class="icon-button modal-close" type="button" aria-label="ປິດ">×</button>
-      <p class="eyebrow">ຂັ້ນຕອນທີ 2</p><h2 id="transferTitle">ໂອນເງິນ ແລະ ສົ່ງໃບໂອນ</h2>
+      <p class="eyebrow">ຂັ້ນຕອນສຸດທ້າຍ</p><h2 id="transferTitle">ໂອນເງິນ ແລ້ວສົ່ງໃບໂອນ</h2>
       <p class="muted" id="transferOrderNo"></p>
       <div id="transferQrBox" class="qr-box big"></div>
       <p id="transferAccount" class="payment-account"></p>
       <button class="secondary-button full" type="button" id="saveQrBtn">⬇ ບັນທຶກຮູບ QR ໄວ້ໃນເຄື່ອງ</button>
       <div class="slip-upload">
-        <p class="step-label">ໂອນແລ້ວ ໃຫ້ອັບໃບໂອນທີ່ນີ້</p>
+        <p class="step-label">① ໂອນເງິນຕາມ QR ຂ້າງເທິງ  ② ອັບຮູບໃບໂອນທີ່ນີ້ <b class="req">(ຈຳເປັນ)</b></p>
         <input id="slipInput" type="file" accept="image/*" />
         <div id="slipPreview" class="image-preview"><span class="input-hint">ຍັງບໍ່ໄດ້ເລືອກໃບໂອນ</span></div>
       </div>
-      <button class="primary-button full" type="button" id="slipSubmit">ສົ່ງໃບໂອນ ແລະ ຈົບການສັ່ງຊື້</button>
-      <button class="text-button full" type="button" id="slipLater">ໂອນທີຫຼັງ — ປິດໜ້ານີ້</button>
+      <button class="primary-button full" type="button" id="slipSubmit">③ ຢືນຢັນສັ່ງຊື້ (ສົ່ງໃບໂອນ)</button>
+      <button class="text-button full" type="button" id="slipLater">ຍົກເລີກ — ກັບໄປແກ້ໄຂ</button>
     </div>
   </div>
 
@@ -360,7 +360,7 @@
   </section>
 
   <div id="toast" class="toast hidden" role="status"></div>
-  <script src="supabase-js.js?v=14" defer></script>
-  <script type="module" src="app.js?v=14"></script>
+  <script src="supabase-js.js?v=16" defer></script>
+  <script type="module" src="app.js?v=16"></script>
 </body>
 </html>

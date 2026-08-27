@@ -619,3 +619,10 @@
   .qr-box.big img{max-width:220px}
   .preview-strip figure,.img-color-select{width:96px}
 }
+.cat-hint{width:100%;grid-column:1/-1;margin:0 0 4px;font-size:12px;color:var(--muted)}
+.step-label .req{color:var(--red)}
+
+/* --- ລາຍການລຸ້ນຝັ່ງລູກຄ້າ: ເຫັນທຸກລຸ້ນເລີຍ ເລື່ອນເບິ່ງໄດ້ --- */
+.model-options-cust{max-height:216px;overflow-y:auto;padding:3px;border:1px solid var(--line);border-radius:11px;background:#fff}
+#detailModelBox .color-chip{font-size:13px;padding:7px 13px}
+@media (max-width:670px){ .model-options-cust{max-height:176px} #detailModelBox .color-chip{font-size:12px;padding:6px 11px} }

@@ -161,7 +161,7 @@ function orderTotal(order) { return order.items.reduce((sum, item) => sum + item
 // Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
 // ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
 // ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
-const APP_VERSION = "14 · ສັ່ງຊື້ງ່າຍ + ໂອນເງິນ + ໜ້າໃບໂອນ";
+const APP_VERSION = "16 · ເລືອກໝວດກ່ອນ · ເຫັນລຸ້ນທັນທີ · ໂອນກ່ອນຢືນຢັນ";
 let uploadSeq = 0;
 function safeFileName(file) {
   const raw = String(file?.name || "");
@@ -276,7 +276,11 @@ function renderCustomerShop() {
     const leaves   = atRoot ? [] : kids.filter(k => !childrenOf(k.id).length && productCountIn(k.id) > 0);
     const showBranches = branches.filter(k => productCountIn(k.id) > 0 || childrenOf(k.id).length);
 
-    if (showBranches.length) { grid.innerHTML = showBranches.map(catCard).join(""); grid.classList.remove("hidden"); }
+    if (showBranches.length) {
+      grid.innerHTML = (atRoot ? `<p class="cat-hint">ເລືອກໝວດສິນຄ້າທີ່ຕ້ອງການ</p>` : "")
+        + showBranches.map(catCard).join("");
+      grid.classList.remove("hidden");
+    }
     if (leaves.length) {
       const scopeCount = currentId ? productCountIn(currentId) : data.products.length;
       chips.innerHTML = [`<button data-cat-model="all" class="${!navLeaf ? "active" : ""}">ທຸກລຸ້ນ (${scopeCount})</button>`,
@@ -286,7 +290,7 @@ function renderCustomerShop() {
 
     const scope = navLeaf || currentId;
     if (scope == null) {
-      // ໜ້າຫຼັກ: ຖ້າມີບັດໝວດ ໃຫ້ສະແດງສະເພາະສິນຄ້າທີ່ບໍ່ໄດ້ຢູ່ໝວດໃດ
+      // ໜ້າຫຼັກ: ໃຫ້ເລືອກໝວດກ່ອນ (ເຄສ / ຈໍ / ແບັດ ...)
       showProducts = showBranches.length
         ? data.products.filter(pr => !pr.categoryId || !catById(pr.categoryId))
         : data.products;
@@ -382,10 +386,11 @@ function openProductDetail(productId, keepState) {
       <p class="detail-desc">${escapeHtml(product.description || "ສິນຄ້າຄຸນນະພາບ ພ້ອມໃຫ້ເລືອກ")}</p>
       ${modelNames.length ? `<div class="color-picker" id="detailModelBox">
         <p class="picker-label">ເລືອກລຸ້ນໂທລະສັບຂອງທ່ານ ${detailState.model ? `<b>· ${escapeHtml(detailState.model)}</b>` : `<em>(ຍັງບໍ່ໄດ້ເລືອກ)</em>`}</p>
-        <select id="detailModelSelect" class="model-select">
-          <option value="">— ເລືອກລຸ້ນ (${modelNames.length} ລຸ້ນ) —</option>
-          ${modelNames.map(n => `<option value="${escapeHtml(n)}" ${detailState.model === n ? "selected" : ""}>${escapeHtml(n)}</option>`).join("")}
-        </select>
+        ${modelNames.length > 12 ? `<label class="search-box detail-model-search"><span>⌕</span><input type="search" id="detailModelSearch" placeholder="ພິມຫາລຸ້ນ ເຊັ່ນ 15 Pro" value="${escapeHtml(detailModelQuery)}"></label>` : ""}
+        <div class="color-options model-options-cust">${modelNames
+          .filter(n => !detailModelQuery || normModel(n).includes(normModel(detailModelQuery)))
+          .map(n => `<button type="button" class="color-chip${detailState.model === n ? " active" : ""}" data-pick-model="${escapeHtml(n)}">${escapeHtml(n)}</button>`).join("")}</div>
+        <small class="muted">ຮ້ານມີເຄສນີ້ສຳລັບ ${modelNames.length} ລຸ້ນ</small>
       </div>` : ""}
       ${colors.length ? `<div class="color-picker" id="detailColorBox">
         <p class="picker-label">ເລືອກສີ ${detailState.color ? `<b>· ${escapeHtml(detailState.color)}</b>` : `<em>(ຍັງບໍ່ໄດ້ເລືອກ)</em>`}</p>
@@ -446,11 +451,12 @@ function syncColorToImage() {
 }
 function updateDetailModel() {
   const box = $("#detailModelBox"); if (!box) return;
-  const sel = box.querySelector("#detailModelSelect"); if (sel && sel.value !== detailState.model) sel.value = detailState.model;
   const label = box.querySelector(".picker-label");
   if (label) label.innerHTML = detailState.model
     ? `ເລືອກລຸ້ນໂທລະສັບຂອງທ່ານ <b>· ${escapeHtml(detailState.model)}</b>`
     : `ເລືອກລຸ້ນໂທລະສັບຂອງທ່ານ <em>(ຍັງບໍ່ໄດ້ເລືອກ)</em>`;
+  box.querySelectorAll("[data-pick-model]").forEach(c =>
+    c.classList.toggle("active", c.dataset.pickModel === detailState.model));
 }
 
 function openImageViewer(src) {
@@ -1334,17 +1340,13 @@ async function createOrderFromForm(form) {
       price: product.price, cost: product.cost, quantity, supplierUrl: product.supplierUrl || ""
     }))
   };
-  const { error } = await supabase.from("orders").insert(order);
-  if (error) throw error;
-  await refreshOrders();
-
   const total = lines.reduce((sum, l) => sum + l.product.price * l.quantity, 0);
-  cart = []; saveCart(); closeLayers();
 
   if (payment === "transfer") {
-    // ຂັ້ນທີ 2: ໂອນເງິນ ແລ້ວສົ່ງໃບໂອນ
-    pendingTransfer = { orderId: id, total };
-    $("#transferOrderNo").innerHTML = `ເລກອໍເດີ <b>${escapeHtml(id)}</b> · ຍອດທີ່ຕ້ອງໂອນ <b>${money(total)}</b>`;
+    // ຍັງບໍ່ບັນທຶກອໍເດີເທື່ອ — ຕ້ອງໂອນ ແລະ ສົ່ງໃບໂອນກ່ອນ
+    pendingTransfer = { order, total };
+    closeLayers();
+    $("#transferOrderNo").innerHTML = `ຍອດທີ່ຕ້ອງໂອນ <b>${money(total)}</b> · ອໍເດີຈະຖືກບັນທຶກຫຼັງສົ່ງໃບໂອນ`;
     $("#transferQrBox").innerHTML = data.payment.qrImage
       ? `<img id="qrImageEl" src="${escapeHtml(data.payment.qrImage)}" alt="QR ໂອນເງິນ" crossorigin="anonymous">`
       : `<div class="muted">ຮ້ານຍັງບໍ່ໄດ້ຕັ້ງ QR — ກະລຸນາຕິດຕໍ່ຮ້ານໂດຍກົງ</div>`;
@@ -1353,7 +1355,15 @@ async function createOrderFromForm(form) {
     $("#slipPreview").innerHTML = `<span class="input-hint">ຍັງບໍ່ໄດ້ເລືອກໃບໂອນ</span>`;
     $("#slipInput").value = "";
     openLayer("#transferModal");
-  } else {
+    return;
+  }
+
+  // ເກັບເງິນປາຍທາງ / ຮັບເອງທີ່ຮ້ານ — ບັນທຶກໄດ້ເລີຍ
+  {
+    const { error } = await supabase.from("orders").insert(order);
+    if (error) throw error;
+    await refreshOrders();
+    cart = []; saveCart(); closeLayers();
     const how = method === "pickup" ? "ມາຮັບເຄື່ອງທີ່ຮ້ານໄດ້ເລີຍ" : "ຮ້ານຈະຈັດສົ່ງໃຫ້ໄວໆ";
     $("#successText").textContent = `ເລກອໍເດີຂອງທ່ານ: ${id} · ຍອດ ${money(total)} · ${how}`;
     $("#successModal").classList.remove("hidden");
@@ -1379,10 +1389,13 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   $("#customerSearch").addEventListener("input", renderCustomerShop);
-  $("#productDetailBody").addEventListener("change", event => {
-    if (event.target.id !== "detailModelSelect") return;
-    detailState.model = event.target.value;
-    updateDetailModel();
+  $("#productDetailBody").addEventListener("input", event => {
+    if (event.target.id !== "detailModelSearch") return;
+    detailModelQuery = event.target.value;
+    const pos = event.target.selectionStart;
+    openProductDetail(detailState.productId, true);
+    const again = $("#detailModelSearch");
+    if (again) { again.focus(); again.setSelectionRange(pos, pos); }
   });
   $(".image-viewer-close").addEventListener("click", closeImageViewer);
   $("#imageViewer").addEventListener("click", event => { if (event.target.id === "imageViewer") closeImageViewer(); });
@@ -1842,29 +1855,28 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#slipSubmit").addEventListener("click", async event => {
     if (!pendingTransfer) return closeLayers();
     const file = $("#slipInput").files[0];
-    if (!file) return toast("ກະລຸນາເລືອກຮູບໃບໂອນກ່ອນ");
+    if (!file) return toast("ກະລຸນາອັບຮູບໃບໂອນກ່ອນ ຈຶ່ງຢືນຢັນໄດ້");
     const button = event.currentTarget; button.disabled = true; const label = button.textContent;
     button.textContent = "ກຳລັງສົ່ງໃບໂອນ...";
     try {
       const url = await uploadImage(file, "receipts");
-      const { error } = await supabase.from("orders")
-        .update({ receipt: url, slipAt: new Date().toISOString() }).eq("id", pendingTransfer.orderId);
+      // ບັນທຶກອໍເດີພ້ອມໃບໂອນໃນເທື່ອດຽວ
+      const order = { ...pendingTransfer.order, receipt: url, slipAt: new Date().toISOString() };
+      const { error } = await supabase.from("orders").insert(order);
       if (error) throw error;
       await refreshOrders();
-      closeLayers();
-      $("#successText").textContent = `ຮັບໃບໂອນແລ້ວ · ອໍເດີ ${pendingTransfer.orderId} · ຍອດ ${money(pendingTransfer.total)} — ຮ້ານຈະກວດຍອດເງິນ ແລ້ວຈັດສົ່ງໃຫ້ໄວໆ`;
+      cart = []; saveCart(); renderCart(); closeLayers();
+      $("#successText").textContent = `ຮັບໃບໂອນແລ້ວ · ອໍເດີ ${order.id} · ຍອດ ${money(pendingTransfer.total)} — ຮ້ານຈະກວດຍອດເງິນ ແລ້ວຈັດສົ່ງໃຫ້ໄວໆ`;
       $("#successModal").classList.remove("hidden"); $("#overlay").classList.remove("hidden");
       pendingTransfer = null;
     } catch (err) { console.error(err); toast(`ສົ່ງໃບໂອນບໍ່ສຳເລັດ: ${err.message || err}`); }
     finally { button.disabled = false; button.textContent = label; }
   });
+  // ຍົກເລີກ — ຍັງບໍ່ໄດ້ບັນທຶກອໍເດີ ສິນຄ້າຍັງຢູ່ໃນກະຕ່າ
   $("#slipLater").addEventListener("click", () => {
+    pendingTransfer = null;
     closeLayers();
-    if (pendingTransfer) {
-      $("#successText").textContent = `ບັນທຶກອໍເດີ ${pendingTransfer.orderId} ແລ້ວ · ຍອດ ${money(pendingTransfer.total)} — ໂອນແລ້ວຕິດຕໍ່ຮ້ານເພື່ອສົ່ງໃບໂອນ`;
-      $("#successModal").classList.remove("hidden"); $("#overlay").classList.remove("hidden");
-      pendingTransfer = null;
-    }
+    toast("ຍົກເລີກແລ້ວ · ສິນຄ້າຍັງຢູ່ໃນກະຕ່າ ສັ່ງໃໝ່ໄດ້ທຸກເວລາ");
   });
 
   // ---- ກັ່ນຕອງໜ້າໃບໂອນ ----
