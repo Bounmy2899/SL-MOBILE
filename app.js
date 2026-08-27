@@ -156,7 +156,7 @@ function orderTotal(order) { return order.items.reduce((sum, item) => sum + item
 // Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
 // ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
 // ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
-const APP_VERSION = "12 · ຈັດການລຸ້ນທີ່ແທັບໝວດສິນຄ້າ";
+const APP_VERSION = "13 · ແກ້ເລືອກລຸ້ນ+ສີ ຄ້າງໄວ້ພ້ອມກັນ";
 let uploadSeq = 0;
 function safeFileName(file) {
   const raw = String(file?.name || "");
@@ -352,7 +352,7 @@ function openProductDetail(productId, keepState) {
       <strong class="detail-price">${money(product.price)}</strong>
       <span class="product-stock">${stockText(product)}</span>
       <p class="detail-desc">${escapeHtml(product.description || "ສິນຄ້າຄຸນນະພາບ ພ້ອມໃຫ້ເລືອກ")}</p>
-      ${modelNames.length ? `<div class="color-picker">
+      ${modelNames.length ? `<div class="color-picker" id="detailModelBox">
         <p class="picker-label">ເລືອກລຸ້ນໂທລະສັບຂອງທ່ານ ${detailState.model ? `<b>· ${escapeHtml(detailState.model)}</b>` : `<em>(ຍັງບໍ່ໄດ້ເລືອກ)</em>`}</p>
         ${modelNames.length > 10 ? `<label class="search-box detail-model-search"><span>⌕</span><input type="search" id="detailModelSearch" placeholder="ພິມຫາລຸ້ນ ເຊັ່ນ 15 Pro" value="${escapeHtml(detailModelQuery)}"></label>` : ""}
         <div class="color-options model-options-cust">${modelNames
@@ -360,7 +360,7 @@ function openProductDetail(productId, keepState) {
           .slice(0, 60).map(n => `<button type="button" class="color-chip${detailState.model === n ? " active" : ""}" data-pick-model="${escapeHtml(n)}">${escapeHtml(n)}</button>`).join("")}</div>
         <small class="muted">ໃສ່ໄດ້ທັງໝົດ ${modelNames.length} ລຸ້ນ</small>
       </div>` : ""}
-      ${colors.length ? `<div class="color-picker">
+      ${colors.length ? `<div class="color-picker" id="detailColorBox">
         <p class="picker-label">ເລືອກສີ ${detailState.color ? `<b>· ${escapeHtml(detailState.color)}</b>` : `<em>(ຍັງບໍ່ໄດ້ເລືອກ)</em>`}</p>
         <div class="color-options">${colors.map(c =>
           `<button type="button" class="color-chip${detailState.color === c ? " active" : ""}" data-pick-color="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join("")}</div>
@@ -395,13 +395,25 @@ function updateDetailImage() {
   $$("#productDetailBody .thumb").forEach((t, i) => t.classList.toggle("active", i === idx));
 }
 // ປ່ຽນສີ: ແກ້ແຕ່ປ້າຍ ແລະ ປຸ່ມສີ
+// ສຳຄັນ: ຕ້ອງຈຳກັດຂອບເຂດໃຫ້ຖືກກ່ອງຂອງມັນ ບໍ່ດັ່ງນັ້ນ
+// ການເລືອກສີຈະໄປລ້າງການເລືອກລຸ້ນ (ແລະ ກັບກັນ) ເພາະໃຊ້ class ດຽວກັນ
 function updateDetailColor() {
-  const label = $("#productDetailBody .picker-label");
+  const box = $("#detailColorBox"); if (!box) return;
+  const label = box.querySelector(".picker-label");
   if (label) label.innerHTML = detailState.color
     ? `ເລືອກສີ <b>· ${escapeHtml(detailState.color)}</b>`
     : `ເລືອກສີ <em>(ຍັງບໍ່ໄດ້ເລືອກ)</em>`;
-  $$("#productDetailBody .color-chip").forEach(c =>
+  box.querySelectorAll("[data-pick-color]").forEach(c =>
     c.classList.toggle("active", c.dataset.pickColor === detailState.color));
+}
+function updateDetailModel() {
+  const box = $("#detailModelBox"); if (!box) return;
+  const label = box.querySelector(".picker-label");
+  if (label) label.innerHTML = detailState.model
+    ? `ເລືອກລຸ້ນໂທລະສັບຂອງທ່ານ <b>· ${escapeHtml(detailState.model)}</b>`
+    : `ເລືອກລຸ້ນໂທລະສັບຂອງທ່ານ <em>(ຍັງບໍ່ໄດ້ເລືອກ)</em>`;
+  box.querySelectorAll("[data-pick-model]").forEach(c =>
+    c.classList.toggle("active", c.dataset.pickModel === detailState.model));
 }
 
 function openImageViewer(src) {
@@ -1591,7 +1603,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (pickImg) { detailState.imageIndex = Number(pickImg.dataset.pickImage); return updateDetailImage(); }
     if (pickColor) { detailState.color = pickColor.dataset.pickColor; return updateDetailColor(); }
     const pickModel = event.target.closest("[data-pick-model]");
-    if (pickModel) { detailState.model = pickModel.dataset.pickModel; return openProductDetail(detailState.productId, true); }
+    if (pickModel) { detailState.model = pickModel.dataset.pickModel; return updateDetailModel(); }
     if (zoom) return openImageViewer(zoom.dataset.zoomImage);
     if (add) {
       if (!addToCart(add.dataset.detailAdd, detailState.color, detailState.model)) return;
