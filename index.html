@@ -33,7 +33,7 @@
   <link rel="preload" as="font" type="font/woff2" href="fonts/phetsarath-lao-400-normal.woff2" crossorigin />
   <link rel="preload" as="image" href="banner-640.webp" imagesrcset="banner-640.webp 640w, banner-1000.webp 1000w, banner-1290.webp 1290w" imagesizes="(max-width:670px) 100vw, (max-width:1200px) 92vw, 1170px" fetchpriority="high" />
   <link rel="preconnect" href="https://fsizqnygcklqlxuopbcc.supabase.co" crossorigin />
-  <link rel="stylesheet" href="style.css?v=16" />
+  <link rel="stylesheet" href="style.css?v=17" />
 </head>
 <body>
   <div class="app-shell">
@@ -134,14 +134,15 @@
               <select name="courier" id="courierSelect"></select>
             </label>
             <label>ທີ່ຢູ່ສົ່ງສິນຄ້າ <span class="optional">(ບ້ານ, ເມືອງ, ແຂວງ)</span><textarea name="address" rows="2" placeholder="ບ້ານ, ເມືອງ, ແຂວງ"></textarea></label>
-            <fieldset class="payment-choice"><legend>ວິທີຊຳລະເງິນ</legend>
-              <label><input type="radio" name="paymentMethod" value="cod" checked /> ເກັບເງິນປາຍທາງ</label>
-              <label><input type="radio" name="paymentMethod" value="transfer" /> ໂອນເງິນລ່ວງໜ້າ</label>
-            </fieldset>
           </div>
 
           <label>ໝາຍເຫດ <span class="optional">(ບໍ່ຕ້ອງໃສ່ກໍໄດ້)</span><textarea name="note" rows="2" placeholder="ເຊັ່ນ ເວລາສະດວກຮັບເຄື່ອງ..."></textarea></label>
-          <button class="primary-button full" type="submit">ຢືນຢັນສັ່ງຊື້</button>
+          <div class="pay-first-note">
+            <b>💳 ຕ້ອງໂອນເງິນກ່ອນທຸກເທື່ອ</b>
+            <p>ກົດຢືນຢັນແລ້ວ ຈະຂຶ້ນ QR ໃຫ້ໂອນ ແລະ ອັບໃບໂອນ ຈຶ່ງຈະບັນທຶກອໍເດີ</p>
+            <p class="alt">ບໍ່ຢາກໂອນກ່ອນ? ແຄັບຮູບເຄສທີ່ຕ້ອງການ ແລ້ວທັກແຊັດເພຈຮ້ານໂດຍກົງ ວ່າຈະມາຮັບເຄື່ອງ ແລະ ຈ່າຍເງິນທີ່ຮ້ານ</p>
+          </div>
+          <button class="primary-button full" type="submit">ຢືນຢັນສັ່ງຊື້ ແລະ ໄປໜ້າໂອນເງິນ</button>
         </form>
         <aside class="order-summary"><p class="eyebrow">ກວດສອບ</p><h3>ລາຍການສັ່ງຊື້</h3><div id="checkoutItems"></div><div class="total-row"><span>ລວມຈ່າຍ</span><strong id="checkoutTotal">0 ₭</strong></div></aside>
       </div>
@@ -239,6 +240,17 @@
 
         <section class="manager-pane hidden" data-pane="products">
           <div class="pane-heading"><div><h2>ສິນຄ້າ</h2><p>ເພີ່ມສິນຄ້າ ຕົ້ນທຶນ ລາຄາຂາຍ ແລະ ລິ້ງຮ້ານຕົ້ນທາງ</p></div><button id="openProductForm" class="primary-button" type="button">+ ເພີ່ມສິນຄ້າ</button></div>
+          <details class="panel color-manager">
+            <summary><b>🎨 ຊຸດສີຂອງຮ້ານ</b> <small class="muted" id="colorSetCount"></small></summary>
+            <p class="muted small-copy">ສີໃນຊຸດນີ້ຈະໂຜ່ໃຫ້ເລືອກຕອນເພີ່ມສິນຄ້າ — ເພີ່ມ ແກ້ ລຶບ ໄດ້ຕາມໃຈ</p>
+            <div class="inline-form">
+              <label>ຊື່ສີ<input id="newColorName" placeholder="ຕົວຢ່າງ: ຟ້າອ່ອນ" /></label>
+              <label>ເລືອກສີ<input id="newColorHex" type="color" value="#3a86ff" /></label>
+              <button class="primary-button" type="button" id="addColorBtn">+ ເພີ່ມສີ</button>
+            </div>
+            <div id="colorSetList" class="swatch-grid manage"></div>
+          </details>
+
           <div class="manage-toolbar">
             <div id="manageCategoryFilter" class="filter-row"></div>
             <label class="search-box manager-search"><span>⌕</span><input id="manageProductSearch" type="search" placeholder="ຄົ້ນຫາຊື່ສິນຄ້າ, ຮຸ່ນ..." /></label>
@@ -268,7 +280,11 @@
                 </div>
                 <div id="modelList" class="model-list"></div>
               </fieldset>
-              <label class="span-2">ສີທີ່ມີ <span class="optional">(ບໍ່ຕ້ອງໃສ່ກໍໄດ້)</span><input name="colors" id="colorsInput" placeholder="ຕົວຢ່າງ: ດຳ, ຂາວ, ຟ້າ, ບົວ" /><span class="input-hint">ຂັ້ນດ້ວຍເຄື່ອງໝາຍຈຸດ (,) — ລູກຄ້າຈະເລືອກສີໄດ້ຕອນສັ່ງ</span></label>
+              <fieldset class="span-2 color-pick-box">
+                <legend>ສີຂອງສິນຄ້ານີ້ <b id="pickedColorCount">0</b></legend>
+                <p class="muted small-copy" id="colorPickHint">ເລືອກຈາກຊຸດສີຂອງຮ້ານ — ຢາກເພີ່ມ/ແກ້ສີ ໄປທີ່ກ່ອງ “ຊຸດສີຂອງຮ້ານ” ຂ້າງເທິງ</p>
+                <div id="productColorPicker" class="swatch-grid"></div>
+              </fieldset>
               <label>ຊື່ສິນຄ້າ<input name="name" placeholder="ຕົວຢ່າງ: ເຄສ iPhone 15 Pro" required /></label>
               <div class="field cat-field">
                 <span class="field-label">ໝວດສິນຄ້າ</span>
@@ -360,7 +376,7 @@
   </section>
 
   <div id="toast" class="toast hidden" role="status"></div>
-  <script src="supabase-js.js?v=16" defer></script>
-  <script type="module" src="app.js?v=16"></script>
+  <script src="supabase-js.js?v=17" defer></script>
+  <script type="module" src="app.js?v=17"></script>
 </body>
 </html>

@@ -616,7 +616,13 @@
   .slip-card{grid-template-columns:82px 1fr;padding:9px}
   .slip-thumb{width:82px;height:104px}
   .slip-amount{font-size:17px}
-  .qr-box.big img{max-width:220px}
+  .image-preview{min-height:92px;padding:8px}
+  #productForm input[type=file]{width:100%;border:1px solid #ccd8d0;border-radius:11px;padding:11px;background:#fff;font-size:13px}
+  .qr-box.big{min-height:0;padding:10px;margin:10px 0}
+  .qr-box.big img{max-width:200px}
+  #slipInput{width:100%;border:1px solid #ccd8d0;border-radius:11px;padding:11px;background:#fff;font-size:13px}
+  #slipPreview{min-height:96px}
+  #slipPreview img{max-height:190px}
   .preview-strip figure,.img-color-select{width:96px}
 }
 .cat-hint{width:100%;grid-column:1/-1;margin:0 0 4px;font-size:12px;color:var(--muted)}
@@ -626,3 +632,58 @@
 .model-options-cust{max-height:216px;overflow-y:auto;padding:3px;border:1px solid var(--line);border-radius:11px;background:#fff}
 #detailModelBox .color-chip{font-size:13px;padding:7px 13px}
 @media (max-width:670px){ .model-options-cust{max-height:176px} #detailModelBox .color-chip{font-size:12px;padding:6px 11px} }
+
+/* ============ ຮອບທີ 8: ຊຸດສີ · ໂອນກ່ອນສະເໝີ ============ */
+
+/* --- ຕາຕະລາງສີ --- */
+.swatch-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.swatch-grid.disabled{opacity:.45;pointer-events:none}
+.swatch{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:#fff;
+  border-radius:999px;padding:8px 15px 8px 9px;font-size:13px;font-weight:700;color:#4d5d55}
+.swatch:hover{border-color:var(--green)}
+.swatch.on{background:var(--green-pale);border-color:var(--green);color:var(--green-dark);box-shadow:0 0 0 1px var(--green) inset}
+.swatch-dot{width:20px;height:20px;border-radius:50%;border:1px solid rgba(0,0,0,.18);flex:0 0 auto}
+.color-pick-box{border:1px solid var(--line);border-radius:13px;padding:14px 15px;background:#f7faf8;margin:0}
+.color-pick-box legend{font-size:12px;font-weight:700;color:var(--green-dark);padding:0 6px}
+.color-pick-box legend b{background:var(--green);color:#fff;border-radius:999px;padding:1px 8px;margin-left:3px}
+
+/* --- ຈັດການຊຸດສີ (ຫຼັງບ້ານ) --- */
+.color-manager{margin-bottom:14px}
+.color-manager>summary{cursor:pointer;font-size:15px;list-style:none;padding:2px 0}
+.color-manager>summary::-webkit-details-marker{display:none}
+.color-manager>summary::before{content:"▸ ";color:var(--muted)}
+.color-manager[open]>summary::before{content:"▾ "}
+.color-manager input[type=color]{width:56px;height:44px;padding:2px;border:1px solid var(--line);border-radius:9px;background:#fff}
+.swatch-grid.manage{gap:7px}
+.swatch-row{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;padding:5px 7px 5px 8px;background:#fff;font-size:12px}
+.swatch-name{font-weight:700;color:#4d5d55}
+.swatch-row button{border:0;background:transparent;color:var(--muted);width:24px;height:24px;border-radius:6px;font-size:13px;line-height:1}
+.swatch-row button:hover{background:rgba(0,0,0,.07);color:var(--ink)}
+.swatch-row button.danger:hover{background:#fbeceb;color:var(--red)}
+
+/* --- ຊ່ອງເລືອກສີຂອງແຕ່ລະຮູບ: ໃຫຍ່ຂຶ້ນ ບໍ່ຕິດກັນ --- */
+.preview-strip{gap:12px;padding:6px 4px 10px}
+.preview-strip figure{width:128px}
+.preview-strip img{width:128px;height:128px}
+.img-color-select{width:128px;height:40px;margin-top:8px;font-size:13px;font-weight:700;
+  border:1px solid var(--line);border-radius:9px;background:#fff;padding:0 8px}
+.img-color-select:focus{outline:2px solid var(--green);outline-offset:1px}
+
+/* --- ແຈ້ງເຕືອນຕ້ອງໂອນກ່ອນ --- */
+.pay-first-note{border:1px solid #ecd9a4;background:#fff8e6;border-radius:12px;padding:13px 15px}
+.pay-first-note b{display:block;font-size:14px;color:#7a5c10;margin-bottom:5px}
+.pay-first-note p{margin:0;font-size:12.5px;line-height:1.7;color:#7a5c10}
+.pay-first-note p.alt{margin-top:8px;padding-top:8px;border-top:1px dashed #ecd9a4}
+
+@media (max-width:670px){
+  .preview-strip figure,.preview-strip img,.img-color-select{width:112px}
+  .preview-strip img{height:112px}
+  .img-color-select{height:44px;font-size:13px;font-weight:700}
+  .swatch{padding:10px 14px 10px 9px;font-size:12.5px;min-height:44px}
+  .swatch-dot{width:20px;height:20px}
+  .swatch-grid{gap:9px}
+  .color-manager .inline-form{flex-direction:column;align-items:stretch}
+  .color-manager input[type=color]{width:100%}
+  .pay-first-note{padding:11px 12px}
+  .pay-first-note p{font-size:12px}
+}

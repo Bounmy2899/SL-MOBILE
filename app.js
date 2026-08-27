@@ -24,7 +24,9 @@ let authReadyOnce = false;   // ໃຊ້ຄັ້ງດຽວຕອນເປີ
 // ---------- 2) Local cache (ອັບເດດອັດຕະໂນມັດໂດຍ realtime subscriptions ຂ້າງລຸ່ມ) ----------
 const defaultProfile = { shopName: "ໂພນມະນີ", tagline: "ອາໄຫຼ່ & ເຄສໂທລະສັບ", ownerName: "", phone: "", logo: "" };
 const defaultPayment = { accountName: "", accountNumber: "", qrImage: "" };
-let couriers = [];   // ລາຍຊື່ບໍລິສັດຂົນສົ່ງ ທີ່ຜູ້ຈັດການຕັ້ງໄວ້
+let couriers = [];      // ລາຍຊື່ບໍລິສັດຂົນສົ່ງ ທີ່ຜູ້ຈັດການຕັ້ງໄວ້
+let colorOptions = [];  // ຊຸດສີຂອງຮ້ານ [{name, hex}]
+let pickedColors = new Set();   // ສີທີ່ເລືອກໄວ້ໃນຟອມສິນຄ້າ (ກໍລະນີຮູບດຽວ)
 
 let data = {
   profile: { ...defaultProfile },
@@ -161,7 +163,7 @@ function orderTotal(order) { return order.items.reduce((sum, item) => sum + item
 // Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
 // ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
 // ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
-const APP_VERSION = "16 · ເລືອກໝວດກ່ອນ · ເຫັນລຸ້ນທັນທີ · ໂອນກ່ອນຢືນຢັນ";
+const APP_VERSION = "17 · ຊຸດສີຮ້ານ + ໂອນເງິນກ່ອນທຸກເທື່ອ";
 let uploadSeq = 0;
 function safeFileName(file) {
   const raw = String(file?.name || "");
@@ -523,6 +525,48 @@ function renderPaymentDetails() {
   const acc = $("#transferAccount");
   if (acc) acc.textContent = [payment.accountName, payment.accountNumber].filter(Boolean).join(" · ");
 }
+const colorHex = (name) => colorOptions.find(c => c.name === name)?.hex || "#cfd8d3";
+
+// ---- ຊຸດສີຂອງຮ້ານ (ຫຼັງບ້ານ) ----
+function renderColorSet() {
+  const box = $("#colorSetList"); if (!box) return;
+  const count = $("#colorSetCount"); if (count) count.textContent = `(${colorOptions.length} ສີ)`;
+  box.innerHTML = colorOptions.length ? colorOptions.map((c, i) => `
+    <div class="swatch-row">
+      <span class="swatch-dot" style="background:${escapeHtml(c.hex || "#ccc")}"></span>
+      <span class="swatch-name">${escapeHtml(c.name)}</span>
+      <button type="button" data-color-rename="${i}" title="ແກ້ຊື່">✎</button>
+      <button type="button" class="danger" data-color-del="${i}" title="ລຶບ">×</button>
+    </div>`).join("")
+    : `<p class="muted small-copy">ຍັງບໍ່ມີສີ — ເພີ່ມສີທຳອິດຂ້າງເທິງ</p>`;
+}
+async function saveColorOptions(list) {
+  const { error } = await supabase.from("settings").update({ colorOptions: list }).eq("id", "store");
+  if (error) { console.error(error); toast(`ບັນທຶກບໍ່ສຳເລັດ: ${error.message}`); return false; }
+  colorOptions = list; renderColorSet(); renderProductColorPicker(); return true;
+}
+
+// ---- ຕົວເລືອກສີໃນຟອມສິນຄ້າ ----
+// ຮູບດຽວ = ເລືອກໄດ້ຫຼາຍສີ · ຫຼາຍຮູບ = ແຕ່ລະຮູບເລືອກ 1 ສີ
+function multiImageMode() { return previewUrls.length > 1 || (editingProductId != null && imageColorMap.length > 1); }
+function renderProductColorPicker() {
+  const box = $("#productColorPicker"); if (!box) return;
+  const multi = multiImageMode();
+  const hint = $("#colorPickHint");
+  if (hint) hint.textContent = multi
+    ? "ມີຫຼາຍຮູບ — ໃຫ້ເລືອກສີຂອງແຕ່ລະຮູບຢູ່ແຖບຕົວຢ່າງຮູບຂ້າງເທິງແທນ"
+    : "ເລືອກໄດ້ຫຼາຍສີ — ຢາກເພີ່ມ/ແກ້ສີ ໄປທີ່ກ່ອງ “ຊຸດສີຂອງຮ້ານ” ຂ້າງເທິງ";
+  box.classList.toggle("disabled", multi);
+  box.innerHTML = colorOptions.length ? colorOptions.map(c => `
+    <button type="button" class="swatch${pickedColors.has(c.name) ? " on" : ""}" data-pick-swatch="${escapeHtml(c.name)}" ${multi ? "disabled" : ""}>
+      <span class="swatch-dot" style="background:${escapeHtml(c.hex || "#ccc")}"></span>
+      <span>${escapeHtml(c.name)}</span>
+    </button>`).join("")
+    : `<p class="muted small-copy">ຍັງບໍ່ມີສີໃນຊຸດ — ເພີ່ມທີ່ກ່ອງ “ຊຸດສີຂອງຮ້ານ” ຂ້າງເທິງ</p>`;
+  const cnt = $("#pickedColorCount");
+  if (cnt) cnt.textContent = multi ? `(ຕັ້ງທີ່ຮູບ)` : pickedColors.size;
+}
+
 function renderCourierSelect() {
   const sel = $("#courierSelect"); if (!sel) return;
   const keep = sel.value;
@@ -1090,17 +1134,19 @@ let imageColorMap = [];   // ສີຂອງແຕ່ລະຮູບໃນຟອ
 function renderPreviewStrip(existingUrls) {
   const box = $("#productImagePreview"); if (!box) return;
   const urls = existingUrls || previewUrls;
-  const colors = ($("#colorsInput")?.value || "").split(",").map(c => c.trim()).filter(Boolean);
+  const many = urls.length > 1;
   box.innerHTML = `<div class="preview-strip">${urls.map((u, i) => `
     <figure>
       <img src="${escapeHtml(u)}" alt="ຮູບທີ ${i + 1}"><figcaption>${i + 1}</figcaption>
-      <select data-img-color="${i}" class="img-color-select" title="ສີຂອງຮູບນີ້">
-        <option value="">— ບໍ່ລະບຸສີ —</option>
-        ${colors.map(c => `<option value="${escapeHtml(c)}" ${imageColorMap[i] === c ? "selected" : ""}>${escapeHtml(c)}</option>`).join("")}
-      </select>
+      ${many ? `<select data-img-color="${i}" class="img-color-select" title="ສີຂອງຮູບນີ້">
+        <option value="">— ເລືອກສີ —</option>
+        ${colorOptions.map(c => `<option value="${escapeHtml(c.name)}" ${imageColorMap[i] === c.name ? "selected" : ""}>${escapeHtml(c.name)}</option>`).join("")}
+      </select>` : ""}
     </figure>`).join("")}</div>
-    ${colors.length ? `<p class="muted small-copy" style="width:100%;margin:8px 0 0">ຜູກສີໃສ່ຮູບແລ້ວ ລູກຄ້າກົດຮູບ → ເລືອກສີໃຫ້ເອງ · ກົດສີ → ສະຫຼັບຮູບໃຫ້ເອງ</p>`
-      : `<p class="muted small-copy" style="width:100%;margin:8px 0 0">ພິມ “ສີທີ່ມີ” ຂ້າງລຸ່ມກ່ອນ ຈຶ່ງຈະເລືອກສີໃຫ້ແຕ່ລະຮູບໄດ້</p>`}`;
+    <p class="muted small-copy" style="width:100%;margin:9px 0 0">${many
+      ? "ຫຼາຍຮູບ — ເລືອກ 1 ສີ ໃຫ້ແຕ່ລະຮູບ · ລູກຄ້າກົດຮູບ → ເລືອກສີໃຫ້ເອງ ກົດສີ → ສະຫຼັບຮູບໃຫ້ເອງ"
+      : "ຮູບດຽວ — ເລືອກສີໄດ້ຫຼາຍສີ ຢູ່ກ່ອງ “ສີຂອງສິນຄ້ານີ້” ຂ້າງລຸ່ມ"}</p>`;
+  renderProductColorPicker();
 }
 
 function setImagePreview(html) {
@@ -1111,6 +1157,8 @@ function setImagePreview(html) {
 function openProductForm(product = null) {
   editingProductId = product?.id ?? null; const form = $("#productForm"); form.reset(); renderProductCategories();
   selectedModels = new Set(product ? productModelIds(product) : []);
+  pickedColors = new Set(product ? productColors(product) : []);
+  renderProductColorPicker();
   if ($("#modelSearch")) $("#modelSearch").value = "";
   pickerPath = []; catPickerPath = []; $("#catPickerPanel")?.classList.add("hidden");
   renderModelList();
@@ -1119,7 +1167,7 @@ function openProductForm(product = null) {
     form.productId.value = product.id; form.name.value = product.name; form.categoryId.value = product.categoryId || "";
     form.saleMode.value = product.saleMode || "inStock"; form.stock.value = product.stock; form.description.value = product.description || "";
     form.supplierUrl.value = product.supplierUrl || ""; form.cost.value = product.cost; form.priceMode.value = "manual"; form.sellPrice.value = product.price;
-    form.colors.value = productColors(product).join(", ");
+    pickedColors = new Set(productColors(product));
     const existing = productImages(product);
     previewUrls.forEach(u => URL.revokeObjectURL(u)); previewUrls = [];
     imageColorMap = productImageColors(product);
@@ -1285,7 +1333,8 @@ async function refreshSettings() {
   data.profile = { ...defaultProfile, ...(row?.profile || {}) };
   data.payment = { ...defaultPayment, ...(row?.payment || {}) };
   couriers = Array.isArray(row?.couriers) ? row.couriers.filter(Boolean) : [];
-  renderCourierList(); renderCourierSelect();
+  colorOptions = Array.isArray(row?.colorOptions) ? row.colorOptions.filter(c => c && c.name) : [];
+  renderCourierList(); renderCourierSelect(); renderColorSet(); renderProductColorPicker();
   renderShopProfile(); renderShopProfileForm(); renderPaymentForm(); renderPaymentDetails();
 }
 function renderAll() {
@@ -1318,7 +1367,7 @@ async function createOrderFromForm(form) {
   const id = `OD-${String(Date.now()).slice(-7)}`;
   const method = values.get("deliveryMethod") || "pickup";
   const isShip = method === "ship";
-  const payment = isShip ? (values.get("paymentMethod") || "cod") : "pickup";
+  const payment = "transfer";   // ບັງຄັບໂອນເງິນກ່ອນທຸກເທື່ອ ບໍ່ວ່າຮັບເອງ ຫຼື ຈັດສົ່ງ
 
   if (isShip && couriers.length && !values.get("courier")) { toast("ກະລຸນາເລືອກບໍລິສັດຂົນສົ່ງ"); return; }
 
@@ -1342,8 +1391,8 @@ async function createOrderFromForm(form) {
   };
   const total = lines.reduce((sum, l) => sum + l.product.price * l.quantity, 0);
 
-  if (payment === "transfer") {
-    // ຍັງບໍ່ບັນທຶກອໍເດີເທື່ອ — ຕ້ອງໂອນ ແລະ ສົ່ງໃບໂອນກ່ອນ
+  {
+    // ຍັງບໍ່ບັນທຶກອໍເດີເທື່ອ — ຕ້ອງໂອນ ແລະ ສົ່ງໃບໂອນກ່ອນສະເໝີ
     pendingTransfer = { order, total };
     closeLayers();
     $("#transferOrderNo").innerHTML = `ຍອດທີ່ຕ້ອງໂອນ <b>${money(total)}</b> · ອໍເດີຈະຖືກບັນທຶກຫຼັງສົ່ງໃບໂອນ`;
@@ -1358,17 +1407,6 @@ async function createOrderFromForm(form) {
     return;
   }
 
-  // ເກັບເງິນປາຍທາງ / ຮັບເອງທີ່ຮ້ານ — ບັນທຶກໄດ້ເລີຍ
-  {
-    const { error } = await supabase.from("orders").insert(order);
-    if (error) throw error;
-    await refreshOrders();
-    cart = []; saveCart(); closeLayers();
-    const how = method === "pickup" ? "ມາຮັບເຄື່ອງທີ່ຮ້ານໄດ້ເລີຍ" : "ຮ້ານຈະຈັດສົ່ງໃຫ້ໄວໆ";
-    $("#successText").textContent = `ເລກອໍເດີຂອງທ່ານ: ${id} · ຍອດ ${money(total)} · ${how}`;
-    $("#successModal").classList.remove("hidden");
-    $("#overlay").classList.remove("hidden");
-  }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1526,7 +1564,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const price = updatePricePreview();
-      const colors = (fd.get("colors") || "").split(",").map(c => c.trim()).filter(Boolean);
+      const many = files.length > 1 || (old && productImages(old).length > 1 && !files.length);
+      const colors = many
+        ? [...new Set(imageColorMap.filter(Boolean))]
+        : [...pickedColors];
       const base = {
         name: fd.get("name").trim(),
         categoryId: Number(fd.get("categoryId")) || null,
@@ -1557,7 +1598,7 @@ document.addEventListener("DOMContentLoaded", () => {
       } else if (files.length > 1 && mode === "split") {
         // ແຍກ: 1 ຮູບ = 1 ສິນຄ້າ ຂໍ້ມູນອື່ນເໝືອນກັນໝົດ
         const rows = urls.map((url, i) => ({ ...base, name: `${base.name} #${i + 1}`, images: [url], imageColors: [imageColorMap[i] || ""], image: url,
-          colors: imageColorMap[i] ? [imageColorMap[i]] : base.colors }));
+          colors: imageColorMap[i] ? [imageColorMap[i]] : [] }));
         const { error } = await supabase.from("products").insert(rows);
         if (error) throw error;
         toast(`ສ້າງ ${rows.length} ສິນຄ້າແຍກກັນແລ້ວ (ລາຄາ ແລະ ຂໍ້ມູນເໝືອນກັນໝົດ)`);
@@ -1813,7 +1854,40 @@ document.addEventListener("DOMContentLoaded", () => {
   toggleDeliveryFields();
 
   // ---- ຜູກສີໃສ່ຮູບ ໃນຟອມສິນຄ້າ ----
-  $("#colorsInput").addEventListener("input", () => { if (previewUrls.length) renderPreviewStrip(); });
+  // ---- ເລືອກສີໃນຟອມສິນຄ້າ (ຮູບດຽວ = ຫຼາຍສີ) ----
+  $("#productColorPicker").addEventListener("click", event => {
+    const b = event.target.closest("[data-pick-swatch]"); if (!b || b.disabled) return;
+    const name = b.dataset.pickSwatch;
+    if (pickedColors.has(name)) pickedColors.delete(name); else pickedColors.add(name);
+    renderProductColorPicker();
+  });
+
+  // ---- ຈັດການຊຸດສີຂອງຮ້ານ ----
+  $("#addColorBtn").addEventListener("click", async () => {
+    const name = ($("#newColorName").value || "").trim();
+    const hex = $("#newColorHex").value || "#cccccc";
+    if (!name) return toast("ໃສ່ຊື່ສີກ່ອນ");
+    if (colorOptions.some(c => c.name.toLowerCase() === name.toLowerCase())) return toast("ມີສີຊື່ນີ້ຢູ່ແລ້ວ");
+    if (await saveColorOptions([...colorOptions, { name, hex }])) { $("#newColorName").value = ""; toast(`ເພີ່ມສີ “${name}” ແລ້ວ`); }
+  });
+  $("#colorSetList").addEventListener("click", async event => {
+    const ren = event.target.closest("[data-color-rename]");
+    const del = event.target.closest("[data-color-del]");
+    if (ren) {
+      const i = Number(ren.dataset.colorRename); const cur = colorOptions[i]; if (!cur) return;
+      const name = prompt("ແກ້ໄຂຊື່ສີ:", cur.name); if (name === null) return;
+      const clean = name.trim(); if (!clean) return toast("ຊື່ຫວ່າງບໍ່ໄດ້");
+      const list = colorOptions.map((c, k) => k === i ? { ...c, name: clean } : c);
+      if (await saveColorOptions(list)) toast("ແກ້ຊື່ສີແລ້ວ");
+      return;
+    }
+    if (del) {
+      const i = Number(del.dataset.colorDel); const cur = colorOptions[i]; if (!cur) return;
+      const used = data.products.filter(pr => productColors(pr).includes(cur.name)).length;
+      if (!confirm(`ລຶບສີ “${cur.name}” ຖິ້ມບໍ?${used ? `\n\nມີສິນຄ້າ ${used} ລາຍການໃຊ້ສີນີ້ຢູ່ (ຂໍ້ມູນເກົ່າຈະຍັງຢູ່)` : ""}`)) return;
+      if (await saveColorOptions(colorOptions.filter((_, k) => k !== i))) toast("ລຶບສີແລ້ວ");
+    }
+  });
   $("#productImagePreview").addEventListener("change", event => {
     const sel = event.target.closest("[data-img-color]"); if (!sel) return;
     imageColorMap[Number(sel.dataset.imgColor)] = sel.value;
