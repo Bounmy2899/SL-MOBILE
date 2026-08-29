@@ -63,6 +63,30 @@ const imageMarkup = (product, className = "") => {
 const catById = (id) => data.categories.find(category => String(category.id) === String(id));
 const categoryName = (id) => catById(id)?.name || "ບໍ່ມີໝວດ";
 const bySort = (a, b) => (a.sort ?? 0) - (b.sort ?? 0) || String(a.name).localeCompare(String(b.name), "lo");
+
+// --- ຮຽງຊື່ລຸ້ນແບບ "ຄົນອ່ານ" (natural sort) ---------------------------------
+// ຕັດຊື່ອອກເປັນທ່ອນ: ຕົວອັກສອນ ກັບ ຕົວເລກ ແລ້ວທຽບເທື່ອລະທ່ອນ
+//   ຕົວອັກສອນທຽບແບບ ກ→ຮ / a→z   ·   ຕົວເລກທຽບຄ່າຈິງ (7 ມາກ່ອນ 15)
+// ຜົນ: Vivo X100 · X200 · X300 ຢູ່ນຳກັນ ສ່ວນ Vivo A200 ແຍກໄປອີກກຸ່ມ
+//      iPhone 7 · 8 · 11 · 15 ຮຽງຕາມເລກ ບໍ່ແມ່ນ 11 · 15 · 7
+const natTokens = (name) => String(name || "")
+  .toLowerCase().replace(/\s+/g, " ").trim()
+  .split(/(\d+)/).filter(t => t !== "")
+  .map(t => /^\d+$/.test(t) ? Number(t) : t);
+
+function naturalCompare(a, b) {
+  const ta = natTokens(a), tb = natTokens(b);
+  const n = Math.min(ta.length, tb.length);
+  for (let i = 0; i < n; i++) {
+    const x = ta[i], y = tb[i];
+    if (typeof x === "number" && typeof y === "number") { if (x !== y) return x - y; continue; }
+    if (typeof x === "number") return -1;          // ເລກມາກ່ອນຕົວອັກສອນ ໃນຕຳແໜ່ງດຽວກັນ
+    if (typeof y === "number") return 1;
+    if (x !== y) return x.localeCompare(y, "lo");
+  }
+  return ta.length - tb.length;                    // ຊື່ສັ້ນກວ່າມາກ່ອນ (S24 ກ່ອນ S24 Ultra)
+}
+const byModelName = (a, b) => naturalCompare(a?.name, b?.name);
 // ລູກໂດຍກົງຂອງໝວດໜຶ່ງ (parentId = null ຄືໝວດໃຫຍ່)
 // ດັດຊະນີໝວດ — ສ້າງເທື່ອດຽວຕໍ່ການໂຫລດ ແທນການກັ່ນຕອງ+ຮຽງ 486 ແຖວທຸກຄັ້ງ
 let childIndex = null, directCount = null;
@@ -74,7 +98,13 @@ function buildCategoryIndex() {
     if (!childIndex.has(key)) childIndex.set(key, []);
     childIndex.get(key).push(c);
   }
-  for (const arr of childIndex.values()) arr.sort(bySort);
+  // ກຸ່ມທີ່ເປັນ "ລຸ້ນ" (ມີຕົວເລກຢູ່ໃນຊື່ ເຊັ່ນ X100 · iPhone 15) = ຮຽງອັດຕະໂນມັດແບບຄົນອ່ານ
+  // ກຸ່ມທີ່ເປັນ "ໝວດ/ຍີ່ຫໍ້/ຊີຣີ້" (ບໍ່ມີຕົວເລກ ເຊັ່ນ iPhone · Android · Samsung)
+  //   = ຮັກສາລຳດັບທີ່ຮ້ານຕັ້ງໄວ້ເອງ ບໍ່ໃຫ້ສະຫຼັບໄປມາ
+  for (const [key, arr] of childIndex) {
+    const looksLikeModels = key !== "root" && arr.some(c => /\d/.test(String(c?.name || "")));
+    arr.sort(looksLikeModels ? byModelName : bySort);
+  }
   directCount = new Map();
   for (const pr of data.products) {
     const key = String(pr.categoryId);
@@ -135,7 +165,7 @@ function productModelIds(product) {
   return Array.isArray(product?.models) ? product.models.map(String).filter(Boolean) : [];
 }
 function productModelNames(product) {
-  return productModelIds(product).map(id => catById(id)?.name).filter(Boolean);
+  return productModelIds(product).map(id => catById(id)?.name).filter(Boolean).sort(naturalCompare);
 }
 // ຈັບຄູ່ຊື່ລຸ້ນແບບຢືດຢຸ່ນ (ບໍ່ສົນຕົວພິມ ຫຼື ຊ່ອງວ່າງ)
 const normModel = (t) => String(t || "").toLowerCase().replace(/[\s._\-()]/g, "");
@@ -163,7 +193,7 @@ function orderTotal(order) { return order.items.reduce((sum, item) => sum + item
 // Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
 // ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
 // ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
-const APP_VERSION = "18 · ປຸ່ມກັບຄືນ ກົດງ່າຍ";
+const APP_VERSION = "19 · ຮຽງລຸ້ນອັດຕະໂນມັດ";
 let uploadSeq = 0;
 function safeFileName(file) {
   const raw = String(file?.name || "");
