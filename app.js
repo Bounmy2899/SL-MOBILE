@@ -163,7 +163,7 @@ function orderTotal(order) { return order.items.reduce((sum, item) => sum + item
 // Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
 // ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
 // ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
-const APP_VERSION = "17 · ຊຸດສີຮ້ານ + ໂອນເງິນກ່ອນທຸກເທື່ອ";
+const APP_VERSION = "18 · ປຸ່ມກັບຄືນ ກົດງ່າຍ";
 let uploadSeq = 0;
 function safeFileName(file) {
   const raw = String(file?.name || "");
@@ -242,25 +242,37 @@ function catCard(cat) {
   </button>`;
 }
 
+// ຖອຍກັບເທື່ອລະຂັ້ນ: ລຸ້ນ → ໝວດແມ່ → ... → ໜ້າຫຼັກຮ້ານ
+function goBackOneLevel() {
+  if (navLeaf) { navLeaf = null; return; }
+  if (navPath.length) { navPath = navPath.slice(0, -1); return; }
+}
+
+// ໃຫ້ປຸ່ມກັບຫຼັງ (ຫຼື ການປັດກັບ) ຂອງໂທລະສັບ ຖອຍໝວດເທື່ອລະຂັ້ນຄືກັນ
+function pushNavState() { try { history.pushState({ shopNav: true }, ""); } catch (e) {} }
+window.addEventListener("popstate", () => {
+  if (navLeaf || navPath.length) { goBackOneLevel(); renderCustomerShop(); pushNavState(); }
+});
+
 function renderCustomerShop() {
   if (loadErrorShown && !data.products.length) return;
   const query = $("#customerSearch").value.trim().toLowerCase();
   const grid = $("#catGrid"), chips = $("#catChips"), crumb = $("#catBreadcrumb");
   const searching = query.length > 0;
 
-  // ---- ເສັ້ນທາງ (ເລິກເທົ່າໃດກໍໄດ້) ----
+  // ---- ແຖບກັບຄືນ: ປຸ່ມໃຫຍ່ 2 ປຸ່ມ ກົດງ່າຍ ບອກຊັດວ່າຢູ່ໃສ ----
   if (navPath.length && !searching) {
-    const parts = [`<button type="button" data-cat-goto="root">ໜ້າຫຼັກຮ້ານ</button>`];
-    navPath.forEach((id, i) => {
-      const cat = catById(id); if (!cat) return;
-      const last = i === navPath.length - 1 && !navLeaf;
-      parts.push(last ? `<span aria-current="page">${escapeHtml(cat.name)}</span>`
-                      : `<button type="button" data-cat-goto="${cat.id}">${escapeHtml(cat.name)}</button>`);
-    });
-    if (navLeaf) { const leaf = catById(navLeaf); if (leaf) parts.push(`<span aria-current="page">${escapeHtml(leaf.name)}</span>`); }
-    crumb.innerHTML = parts.join('<i aria-hidden="true">›</i>');
+    const hereId = navLeaf || navPath[navPath.length - 1];
+    const here = catById(hereId);
+    // ຊື່ຂັ້ນທີ່ຈະກັບໄປ ໃຫ້ຜູ້ໃຊ້ຮູ້ລ່ວງໜ້າວ່າກົດແລ້ວໄປໃສ
+    let backName = "ໜ້າຫຼັກຮ້ານ";
+    if (navLeaf) { const c = catById(navPath[navPath.length - 1]); if (c) backName = c.name; }
+    else if (navPath.length > 1) { const c = catById(navPath[navPath.length - 2]); if (c) backName = c.name; }
+    const back = $("#catBackBtn"), label = $("#catHereLabel");
+    if (back) back.innerHTML = `<span class="chev" aria-hidden="true">‹</span><span class="lbl">ກັບຄືນ<small>${escapeHtml(backName)}</small></span>`;
+    if (label) label.textContent = here ? here.name : "";
     crumb.classList.remove("hidden");
-  } else { crumb.innerHTML = ""; crumb.classList.add("hidden"); }
+  } else { crumb.classList.add("hidden"); }
 
   grid.innerHTML = ""; grid.classList.add("hidden");
   chips.innerHTML = ""; chips.classList.add("hidden");
@@ -1789,23 +1801,28 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#catGrid").addEventListener("click", event => {
     const card = event.target.closest("[data-cat-open]"); if (!card) return;
     navPath.push(card.dataset.catOpen); navLeaf = null;
+    pushNavState();
     renderCustomerShop();
     $("#products").scrollIntoView({ behavior: "smooth", block: "start" });
   });
   $("#catBreadcrumb").addEventListener("click", event => {
     const button = event.target.closest("[data-cat-goto]"); if (!button) return;
     const target = button.dataset.catGoto;
-    if (target === "root") { navPath = []; navLeaf = null; }
+    if (target === "root") { navPath = []; navLeaf = null; }        // ✕ ອອກ = ກັບໜ້າຫຼັກຮ້ານທັນທີ
+    else if (target === "back") { goBackOneLevel(); }               // ‹ ກັບຄືນ = ຖອຍເທື່ອລະຂັ້ນ
     else {
       const idx = navPath.findIndex(id => String(id) === String(target));
       if (idx > -1) navPath = navPath.slice(0, idx + 1);
       navLeaf = null;
     }
     renderCustomerShop();
+    $("#products")?.scrollIntoView({ behavior: "smooth", block: "start" });
   });
   $("#catChips").addEventListener("click", event => {
     const button = event.target.closest("[data-cat-model]"); if (!button) return;
-    navLeaf = button.dataset.catModel === "all" ? null : button.dataset.catModel;
+    const nextLeaf = button.dataset.catModel === "all" ? null : button.dataset.catModel;
+    if (nextLeaf && !navLeaf) pushNavState();
+    navLeaf = nextLeaf;
     renderCustomerShop();
   });
 
