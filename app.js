@@ -26,6 +26,9 @@ const defaultProfile = { shopName: "ໂພນມະນີ", tagline: "ອາໄ�
 const defaultPayment = { accountName: "", accountNumber: "", qrImage: "" };
 let couriers = [];      // ລາຍຊື່ບໍລິສັດຂົນສົ່ງ ທີ່ຜູ້ຈັດການຕັ້ງໄວ້
 let colorOptions = [];  // ຊຸດສີຂອງຮ້ານ [{name, hex}]
+// ສູດຄິດລາຄາຂອງຮ້ານ — ຕັ້ງເທື່ອດຽວ ໃຊ້ທຸກເທື່ອທີ່ເພີ່ມສິນຄ້າ
+const defaultPriceRule = { yuanRate: 0, shipCost: 0, profitMode: "percent", profitValue: 20 };
+let priceRule = { ...defaultPriceRule };
 let pickedColors = new Set();   // ສີທີ່ເລືອກໄວ້ໃນຟອມສິນຄ້າ (ກໍລະນີຮູບດຽວ)
 
 let data = {
@@ -193,7 +196,7 @@ function orderTotal(order) { return order.items.reduce((sum, item) => sum + item
 // Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
 // ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
 // ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
-const APP_VERSION = "19 · ຮຽງລຸ້ນອັດຕະໂນມັດ";
+const APP_VERSION = "20 · ເລດຢວນ + ວາງລາຍຊື່ລຸ້ນ";
 let uploadSeq = 0;
 function safeFileName(file) {
   const raw = String(file?.name || "");
@@ -942,7 +945,9 @@ function renderManagerProducts() {
           <span class="stock-unit">ຊິ້ນ</span>
         </div>
       </div>
-      <div class="product-finance"><strong>ຂາຍ ${money(product.price)}</strong><span>ຕົ້ນທຶນ ${money(product.cost)} · ກຳໄລ ${money(product.price - product.cost)}</span></div>
+      <div class="product-finance"><strong>ຂາຍ ${money(product.price)}</strong>
+        <span>ຕົ້ນທຶນ ${money(product.cost)} · ກຳໄລ ${money(product.price - product.cost)}</span>
+        ${Number(product.yuanPrice || 0) > 0 ? `<span class="yuan-tag">¥ ${Number(product.yuanPrice)}${Number(product.shipCost || 0) ? ` + ຂົນສົ່ງ ${money(product.shipCost)}` : ""}</span>` : ""}</div>
       <div class="product-tools"><button class="small-button" data-edit-product="${product.id}">ແກ້ໄຂ</button><button class="small-button delete" data-delete-product="${product.id}">ລຶບ</button></div>
     </article>`;
   }).join("") : `<div class="empty-state"><h3>${data.products.length ? "ບໍ່ພົບສິນຄ້າໃນມູມມອງນີ້" : "ຍັງບໍ່ມີສິນຄ້າ"}</h3><p>${data.products.length ? "ລອງເລືອກໝວດອື່ນ ຫຼື ຄົ້ນຫາໃໝ່" : "ກົດ “ເພີ່ມສິນຄ້າ” ເພື່ອເລີ່ມຕົ້ນ"}</p></div>`;
@@ -1168,8 +1173,51 @@ function renderShopProfileForm() {
 }
 function switchManagerTab(tab) { $$(".manager-tab").forEach(button => button.classList.toggle("active", button.dataset.managerTab === tab)); $$(".manager-pane").forEach(pane => pane.classList.toggle("hidden", pane.dataset.pane !== tab)); if (tab === "dashboard") renderDashboard(); if (tab === "orders") renderOrders(); if (tab === "restock") renderRestock(); if (tab === "shipping") renderShipping(); if (tab === "slips") renderSlips(); if (tab === "products") { renderProductCategories(); renderManagerProducts(); } if (tab === "categories") renderCategoriesManager(); if (tab === "payment") renderPaymentForm(); if (tab === "financial") renderFinancials(); if (tab === "profile") renderShopProfileForm(); }
 
-function setPriceMode() { const mode = $("#priceMode").value; $("#markupField").classList.toggle("hidden", mode !== "markup"); $("#sellPriceField").classList.toggle("hidden", mode !== "manual"); updatePricePreview(); }
-function updatePricePreview() { const cost = Number($("#costInput").value || 0); const mode = $("#priceMode").value; const markup = Number($("#markupInput").value || 0); const rawPrice = mode === "markup" ? Math.round(cost * (1 + markup / 100) / 1000) * 1000 : Number($("#sellPriceInput").value || 0); const price = Math.max(0, rawPrice); $("#calculatedPrice").textContent = money(price); const profit = price - cost; $("#profitPreview").textContent = `ກຳໄລ ${money(profit)} / ຊິ້ນ${cost ? ` (${Math.round((profit / cost) * 100)}%)` : ""}`; return price; }
+function setPriceMode() {
+  const mode = $("#priceMode").value;
+  $("#markupField").classList.toggle("hidden", mode !== "markup");
+  $("#fixedProfitField")?.classList.toggle("hidden", mode !== "fixed");
+  $("#sellPriceField").classList.toggle("hidden", mode !== "manual");
+  updatePricePreview();
+}
+
+// ຢວນ × ເລດ + ຄ່າຂົນສົ່ງ = ຕົ້ນທຶນລວມ (ຕື່ມໃສ່ຊ່ອງຕົ້ນທຶນໃຫ້ອັດຕະໂນມັດ)
+function recalcCostFromYuan(force = false) {
+  const yuanBox = $("#yuanInput"), costBox = $("#costInput"), shipBox = $("#shipInput");
+  if (!yuanBox || !costBox) return;
+  const yuan = Number(yuanBox.value || 0);
+  const rate = Number(priceRule.yuanRate || 0);
+  const ship = Number(shipBox?.value || 0);
+  const hint = $("#yuanHint"), brk = $("#costBreakdown");
+  if (hint) hint.textContent = rate ? `ເລດປັດຈຸບັນ 1 ¥ = ${money(rate)}` : "ຍັງບໍ່ໄດ້ຕັ້ງເລດຢວນ — ໄປຕັ້ງທີ່ 💱 ຂ້າງເທິງ";
+  // ພິມຢວນມາ = ຄິດຕົ້ນທຶນໃຫ້ໃໝ່ · ບໍ່ໄດ້ພິມຢວນ = ປ່ອຍໃຫ້ພິມຕົ້ນທຶນເປັນກີບເອງ
+  if (yuan > 0 && rate > 0) {
+    const total = Math.round((yuan * rate + ship) / 1000) * 1000;
+    costBox.value = total;
+    if (brk) brk.textContent = `${yuan} ¥ × ${money(rate)} = ${money(Math.round(yuan * rate))}${ship ? ` + ຂົນສົ່ງ ${money(ship)}` : ""} → ${money(total)}`;
+  } else if (force || yuan <= 0) {
+    if (brk) brk.textContent = "ພິມລາຄາຢວນຂ້າງເທິງ ຫຼື ພິມຕົ້ນທຶນເປັນກີບໃສ່ຊ່ອງນີ້ໂດຍກົງ";
+  }
+  updatePricePreview();
+}
+
+function updatePricePreview() {
+  const cost = Number($("#costInput").value || 0);
+  const mode = $("#priceMode").value;
+  const markup = Number($("#markupInput").value || 0);
+  const fixed = Number($("#fixedProfitInput")?.value || 0);
+  let rawPrice;
+  if (mode === "markup") rawPrice = Math.round(cost * (1 + markup / 100) / 1000) * 1000;
+  else if (mode === "fixed") rawPrice = Math.round((cost + fixed) / 1000) * 1000;
+  else rawPrice = Number($("#sellPriceInput").value || 0);
+  const price = Math.max(0, rawPrice);
+  $("#calculatedPrice").textContent = money(price);
+  const profit = price - cost;
+  const yuan = Number($("#yuanInput")?.value || 0);
+  $("#profitPreview").textContent = `ກຳໄລ ${money(profit)} / ຊິ້ນ${cost ? ` (${Math.round((profit / cost) * 100)}%)` : ""}`
+    + (yuan > 0 ? ` · ຕົ້ນທຶນ ${yuan} ¥` : "");
+  return price;
+}
 let imageColorMap = [];   // ສີຂອງແຕ່ລະຮູບໃນຟອມ
 
 // ແຖບຕົວຢ່າງຮູບ ພ້ອມຊ່ອງເລືອກສີຂອງແຕ່ລະຮູບ
@@ -1209,6 +1257,8 @@ function openProductForm(product = null) {
     form.productId.value = product.id; form.name.value = product.name; form.categoryId.value = product.categoryId || "";
     form.saleMode.value = product.saleMode || "inStock"; form.stock.value = product.stock; form.description.value = product.description || "";
     form.supplierUrl.value = product.supplierUrl || ""; form.cost.value = product.cost; form.priceMode.value = "manual"; form.sellPrice.value = product.price;
+    if (form.yuanPrice) form.yuanPrice.value = product.yuanPrice || "";
+    if (form.shipCost) form.shipCost.value = product.shipCost ?? "";
     pickedColors = new Set(productColors(product));
     const existing = productImages(product);
     previewUrls.forEach(u => URL.revokeObjectURL(u)); previewUrls = [];
@@ -1216,16 +1266,88 @@ function openProductForm(product = null) {
     if (existing.length) renderPreviewStrip(existing);
     else $("#productImagePreview").innerHTML = `<span class="input-hint">ສິນຄ້ານີ້ຍັງບໍ່ມີຮູບ</span>`;
   } else {
-    form.saleMode.value = "onDemand"; form.stock.value = 0; form.priceMode.value = "markup"; form.markup.value = 20;
+    form.saleMode.value = "onDemand"; form.stock.value = 0;
+    if (form.yuanPrice) form.yuanPrice.value = "";
+    if (form.shipCost) form.shipCost.value = priceRule.shipCost || "";
+    // ໃຊ້ສູດກຳໄລຂອງຮ້ານເປັນຄ່າຕັ້ງຕົ້ນ
+    if ((priceRule.profitMode || "percent") === "fixed") {
+      form.priceMode.value = "fixed";
+      if (form.fixedProfit) form.fixedProfit.value = priceRule.profitValue || 0;
+      form.markup.value = 20;
+    } else {
+      form.priceMode.value = "markup"; form.markup.value = priceRule.profitValue || 20;
+    }
     setImagePreview(`<span class="input-hint">ຍັງບໍ່ໄດ້ເລືອກຮູບ</span>`);
   }
-  setPriceMode(); $("#productFormWrap").classList.remove("hidden"); $("#productFormWrap").scrollIntoView({ behavior: "smooth", block: "start" });
+  setPriceMode(); recalcCostFromYuan(true); $("#productFormWrap").classList.remove("hidden"); $("#productFormWrap").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 // ---------- ລາຍການຕິກເລືອກລຸ້ນ ----------
 
 let pickerPath = [];   // ເສັ້ນທາງທີ່ກຳລັງເປີດຢູ່ໃນລາຍການເລືອກລຸ້ນ
+let modelPasteOpen = false;   // ກ່ອງ "ວາງລາຍຊື່ລຸ້ນ" ເປີດຢູ່ ຫຼື ບໍ່
+
+// ຕັດຂໍ້ຄວາມທີ່ວາງມາ ອອກເປັນຊື່ລຸ້ນ
+// ຂັ້ນດ້ວຍ: ຂຶ້ນແຖວໃໝ່ · ຈຸດ (.) · ຈຸດເມັດ (• ·) · ຈຸດພາກ (,) · ເຊມິໂຄລອນ · ແທັບ
+// ບໍ່ຂັ້ນດ້ວຍ "ຊ່ອງວ່າງ" — ເພາະ "A15 5G" ຄືລຸ້ນດຽວ ບໍ່ແມ່ນສອງລຸ້ນ
+function splitModelText(text) {
+  return String(text || "")
+    .split(/[\n\r\t.,;|•·]+/)
+    .map(t => t.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
 
 // ນັບລຸ້ນ (ໃບ) ທັງໝົດພາຍໃຕ້ໝວດໜຶ່ງ
+// ---- ວາງລາຍຊື່ລຸ້ນ: ມີແລ້ວ→ຕິກໃຫ້ · ຍັງບໍ່ມີ→ເພີ່ມເຂົ້າໝວດນີ້ແລ້ວຕິກໃຫ້ ----
+async function applyModelPaste(button) {
+  const currentId = pickerPath.length ? Number(pickerPath[pickerPath.length - 1]) : null;
+  const result = $("#modelPasteResult");
+  if (currentId == null) return toast("ເປີດເຂົ້າໝວດກ່ອນ ເຊັ່ນ Android › Oppo");
+  const names = splitModelText($("#modelPasteInput")?.value);
+  if (!names.length) return toast("ຍັງບໍ່ໄດ້ວາງລາຍຊື່ລຸ້ນ");
+
+  // ຂອງທີ່ມີຢູ່ແລ້ວໃນໝວດນີ້ (ນັບທຸກຊັ້ນຍ່ອຍ) — ທຽບແບບບໍ່ສົນຊ່ອງວ່າງ/ຕົວພິມ
+  const pool = new Map();
+  leavesUnder(currentId).forEach(m => pool.set(normModel(m.name), m));
+  childrenOf(currentId).forEach(m => { if (!pool.has(normModel(m.name))) pool.set(normModel(m.name), m); });
+
+  const matched = [], toAdd = [], seen = new Set();
+  names.forEach(name => {
+    const key = normModel(name);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    const hit = pool.get(key);
+    if (hit) matched.push(hit); else toAdd.push(name);
+  });
+
+  let added = [];
+  if (toAdd.length) {
+    if (button) button.disabled = true;
+    const base = (childrenOf(currentId).length + 1) * 10;
+    const rows = toAdd.map((name, i) => ({ name, parentId: currentId, icon: "", sort: base + (i + 1) * 10 }));
+    try {
+      const { data: inserted, error } = await supabase.from("categories").insert(rows).select();
+      if (error) throw error;
+      added = inserted || [];
+      await refreshCategories();
+    } catch (error) {
+      if (button) button.disabled = false;
+      result.innerHTML = `<span class="miss">ເພີ່ມລຸ້ນໃໝ່ບໍ່ໄດ້: ${escapeHtml(error.message || "")}</span>`;
+      return toast("ເພີ່ມລຸ້ນໃໝ່ບໍ່ໄດ້");
+    }
+    if (button) button.disabled = false;
+  }
+
+  [...matched, ...added].forEach(m => { if (m?.id != null) selectedModels.add(String(m.id)); });
+  $("#modelPasteInput").value = "";
+  renderModelList();
+  const r = $("#modelPasteResult");
+  if (r) r.innerHTML = [
+    matched.length ? `<span class="ok">ຕິກໃຫ້ແລ້ວ ${matched.length} ລຸ້ນ (ມີຢູ່ກ່ອນ)</span>` : "",
+    added.length ? `<span class="ok">ເພີ່ມໃໝ່ ${added.length} ລຸ້ນ ແລະ ຕິກໃຫ້ແລ້ວ: ${added.map(a => escapeHtml(a.name)).join(" · ")}</span>` : ""
+  ].filter(Boolean).join("<br>");
+  toast(`ຕິກໃຫ້ ${matched.length + added.length} ລຸ້ນ${added.length ? ` · ເພີ່ມໃໝ່ ${added.length}` : ""}`);
+}
+
 function leavesUnder(id) {
   const out = [];
   const walk = (pid) => childrenOf(pid).forEach(c => {
@@ -1284,9 +1406,18 @@ function renderModelList() {
       <div class="picker-crumb">${crumb.join("")}</div>
       <div class="picker-actions">
         ${currentId ? `<button type="button" class="small-button" data-model-all="${allLeaves.map(m => m.id).join(",")}">${allOn ? "ເອົາອອກໝົດ" : `ເລືອກໝົດ (${allLeaves.length})`}</button>` : ""}
-
+        ${currentId ? `<button type="button" class="small-button" id="modelPasteToggle">📋 ວາງລາຍຊື່ລຸ້ນ</button>` : ""}
       </div>
     </div>
+    ${currentId ? `<div id="modelPasteBox" class="paste-box${modelPasteOpen ? "" : " hidden"}">
+      <p class="add-here">ວາງລາຍຊື່ລຸ້ນລົງໃນ <b>${escapeHtml(catById(currentId)?.name || "")}</b> — ມີແລ້ວຈະ<b>ຕິກໃຫ້</b> · ຍັງບໍ່ມີຈະ<b>ເພີ່ມໃຫ້ ແລ້ວຕິກໃຫ້</b></p>
+      <textarea id="modelPasteInput" rows="4" placeholder="ຂຶ້ນແຖວໃໝ່ 1 ລຸ້ນ (ວາງຈາກ Excel ໄດ້ເລີຍ) ຫຼື ຂັ້ນດ້ວຍ ຈຸດ (.) · ຈຸດເມັດ (•)&#10;ຕົວຢ່າງ:&#10;A5&#10;A5 5G&#10;A16"></textarea>
+      <div class="paste-actions">
+        <button type="button" class="primary-button" id="modelPasteApply">✓ ກວດ ແລະ ຕິກໃຫ້</button>
+        <button type="button" class="secondary-button" id="modelPasteCancel">ຍົກເລີກ</button>
+      </div>
+      <p id="modelPasteResult" class="paste-result"></p>
+    </div>` : ""}
     ${branches.length ? `<div class="picker-folders">${branches.map(c => {
       const n = leavesUnder(c.id).length;
       const picked = leavesUnder(c.id).filter(m => selectedModels.has(String(m.id))).length;
@@ -1369,6 +1500,38 @@ function refreshBadges() {
   setBadge("#slipBadge", data.orders.filter(o => o.receipt && o.status === "new").length);
 }
 async function refreshExpenses() { data.expenses = await fetchTable("expenses"); renderFinancials(); }
+function renderPriceRule() {
+  const rate = $("#ruleYuanRate"); if (!rate) return;
+  rate.value = priceRule.yuanRate || "";
+  $("#ruleShipCost").value = priceRule.shipCost || "";
+  $("#ruleProfitMode").value = priceRule.profitMode || "percent";
+  $("#ruleProfitValue").value = priceRule.profitValue ?? "";
+  const pct = (priceRule.profitMode || "percent") === "percent";
+  $("#ruleProfitHint").textContent = pct ? "ຕົວຢ່າງ: 20 = ບວກ 20%" : "ຕົວຢ່າງ: 20000 = ບວກ 20,000 ₭";
+  $("#priceRuleSummary").textContent = priceRule.yuanRate
+    ? `(1 ¥ = ${money(priceRule.yuanRate)} · ຂົນສົ່ງ ${money(priceRule.shipCost || 0)} · ກຳໄລ ${pct ? `${priceRule.profitValue || 0}%` : money(priceRule.profitValue || 0)})`
+    : "(ຍັງບໍ່ໄດ້ຕັ້ງ)";
+  // ຕົວຢ່າງໃຫ້ເຫັນພາບ: ຢວນ 50
+  const rateN = Number(priceRule.yuanRate || 0), ship = Number(priceRule.shipCost || 0);
+  if (rateN > 0) {
+    const cost = 50 * rateN + ship;
+    const sell = pct ? cost * (1 + Number(priceRule.profitValue || 0) / 100) : cost + Number(priceRule.profitValue || 0);
+    $("#ruleExample").textContent = `ຕົວຢ່າງ: 50 ¥ → ຕົ້ນທຶນ ${money(Math.round(cost))} → ຂາຍ ${money(Math.round(sell / 1000) * 1000)}`;
+  } else { $("#ruleExample").textContent = ""; }
+}
+
+async function savePriceRule() {
+  const next = {
+    yuanRate: Number($("#ruleYuanRate").value || 0),
+    shipCost: Number($("#ruleShipCost").value || 0),
+    profitMode: $("#ruleProfitMode").value === "fixed" ? "fixed" : "percent",
+    profitValue: Number($("#ruleProfitValue").value || 0)
+  };
+  const { error } = await supabase.from("settings").update({ pricing: next }).eq("id", "store");
+  if (error) { console.error(error); toast("ບັນທຶກສູດບໍ່ໄດ້: " + (error.message || "")); return false; }
+  priceRule = next; renderPriceRule(); toast("ບັນທຶກສູດລາຄາແລ້ວ"); return true;
+}
+
 async function refreshSettings() {
   const { data: row, error } = await supabase.from("settings").select("*").eq("id", "store").maybeSingle();
   if (error) console.error("settings:", error);
@@ -1376,6 +1539,8 @@ async function refreshSettings() {
   data.payment = { ...defaultPayment, ...(row?.payment || {}) };
   couriers = Array.isArray(row?.couriers) ? row.couriers.filter(Boolean) : [];
   colorOptions = Array.isArray(row?.colorOptions) ? row.colorOptions.filter(c => c && c.name) : [];
+  priceRule = { ...defaultPriceRule, ...(row?.pricing || {}) };
+  renderPriceRule();
   renderCourierList(); renderCourierSelect(); renderColorSet(); renderProductColorPicker();
   renderShopProfile(); renderShopProfileForm(); renderPaymentForm(); renderPaymentDetails();
 }
@@ -1592,7 +1757,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }));
 
-  $("#openProductForm").addEventListener("click", () => openProductForm()); $("#closeProductForm").addEventListener("click", closeProductForm); $("#cancelProductForm").addEventListener("click", closeProductForm); $("#priceMode").addEventListener("change", setPriceMode); ["#costInput", "#markupInput", "#sellPriceInput"].forEach(id => $(id).addEventListener("input", updatePricePreview));
+  $("#openProductForm").addEventListener("click", () => openProductForm()); $("#closeProductForm").addEventListener("click", closeProductForm); $("#cancelProductForm").addEventListener("click", closeProductForm); $("#priceMode").addEventListener("change", setPriceMode);
+  ["#costInput", "#markupInput", "#sellPriceInput", "#fixedProfitInput"].forEach(id => $(id)?.addEventListener("input", updatePricePreview));
+  ["#yuanInput", "#shipInput"].forEach(id => $(id)?.addEventListener("input", () => recalcCostFromYuan()));
+  $("#savePriceRule")?.addEventListener("click", savePriceRule);
+  $("#ruleProfitMode")?.addEventListener("change", () => {
+    const pct = $("#ruleProfitMode").value === "percent";
+    $("#ruleProfitHint").textContent = pct ? "ຕົວຢ່າງ: 20 = ບວກ 20%" : "ຕົວຢ່າງ: 20000 = ບວກ 20,000 ₭";
+  });
   $$("[data-markup]").forEach(button => button.addEventListener("click", () => { $("#markupInput").value = button.dataset.markup; updatePricePreview(); }));
   $("#productForm").addEventListener("submit", async event => {
     event.preventDefault();
@@ -1618,6 +1790,8 @@ document.addEventListener("DOMContentLoaded", () => {
         cost: Number(fd.get("cost")), price,
         stock: Number(fd.get("stock")),
         supplierUrl: fd.get("supplierUrl").trim(),
+        yuanPrice: Number(fd.get("yuanPrice") || 0),   // ເຫັນສະເພາະຜູ້ຈັດການ
+        shipCost: Number(fd.get("shipCost") || 0),     // ເຫັນສະເພາະຜູ້ຈັດການ
         colors,
         models: [...selectedModels]
       };
@@ -1702,13 +1876,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const openFolder = event.target.closest("[data-picker-open]");
     const goto = event.target.closest("[data-picker-goto]");
 
-    if (openFolder) { pickerPath.push(openFolder.dataset.pickerOpen); return renderModelList(); }
+    if (openFolder) { pickerPath.push(openFolder.dataset.pickerOpen); modelPasteOpen = false; return renderModelList(); }
     if (goto) {
       const t = goto.dataset.pickerGoto;
       if (t === "root") pickerPath = [];
       else { const i = pickerPath.findIndex(id => String(id) === String(t)); if (i > -1) pickerPath = pickerPath.slice(0, i + 1); }
+      modelPasteOpen = false;
       return renderModelList();
     }
+    if (event.target.closest("#modelPasteToggle")) { modelPasteOpen = !modelPasteOpen; return renderModelList(); }
+    if (event.target.closest("#modelPasteCancel")) { modelPasteOpen = false; return renderModelList(); }
+    if (event.target.closest("#modelPasteApply")) return applyModelPaste(event.target.closest("#modelPasteApply"));
     const all = event.target.closest("[data-model-all]"); if (!all) return;
     const ids = all.dataset.modelAll.split(",").filter(Boolean);
     const allOn = ids.every(id => selectedModels.has(id));

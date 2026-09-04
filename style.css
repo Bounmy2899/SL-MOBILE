@@ -635,6 +635,8 @@
   .slip-amount{font-size:17px}
   .image-preview{min-height:92px;padding:8px}
   #productForm input[type=file]{width:100%;border:1px solid #ccd8d0;border-radius:11px;padding:11px;background:#fff;font-size:13px}
+  #productForm input[type=number],#productForm input[type=text],#productForm input[type=url],
+  #productForm select{min-height:46px;font-size:15px}
   .qr-box.big{min-height:0;padding:10px;margin:10px 0}
   .qr-box.big img{max-width:200px}
   #slipInput{width:100%;border:1px solid #ccd8d0;border-radius:11px;padding:11px;background:#fff;font-size:13px}
@@ -703,4 +705,19 @@
   .color-manager input[type=color]{width:100%}
   .pay-first-note{padding:11px 12px}
   .pay-first-note p{font-size:12px}
+}
+
+
+/* --- ສູດລາຄາ / ເລດຢວນ (ເຫັນສະເພາະຜູ້ຈັດການ) --- */
+.price-rule-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:12px}
+.price-rule-grid label{display:grid;gap:6px;color:#34443b;font-size:13px;font-weight:700}
+.price-rule-grid input,.price-rule-grid select{width:100%;border:1px solid #ccd8d0;border-radius:9px;padding:10px 11px;font-size:14px;background:#fff;color:var(--ink)}
+.price-manager summary{cursor:pointer}
+.yuan-tag{display:inline-block;margin-top:3px;padding:2px 8px;border-radius:999px;background:#fff4e0;color:#96590c;font-size:11.5px;font-weight:700}
+#modelPasteBox{margin:10px 0}
+#modelPasteBox textarea{width:100%;border:1px solid #ccd8d0;border-radius:11px;padding:11px;font-size:14px;resize:vertical}
+@media (max-width:670px){
+  .price-rule-grid{grid-template-columns:1fr}
+  .price-rule-grid input,.price-rule-grid select{min-height:46px}
+  #modelPasteBox textarea{min-height:120px}
 }
