@@ -196,7 +196,7 @@ function orderTotal(order) { return order.items.reduce((sum, item) => sum + item
 // Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
 // ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
 // ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
-const APP_VERSION = "20 · ເລດຢວນ + ວາງລາຍຊື່ລຸ້ນ";
+const APP_VERSION = "21 · ແຊຣ໌ລິ້ງໂຜ່ຮູບຮ້ານ";
 let uploadSeq = 0;
 function safeFileName(file) {
   const raw = String(file?.name || "");
