@@ -721,3 +721,116 @@
   .price-rule-grid input,.price-rule-grid select{min-height:46px}
   #modelPasteBox textarea{min-height:120px}
 }
+
+
+/* =====================================================================
+   ໜ້າບັນຊີ — ທຶນໝູນວຽນ · ຊັບສິນຄົງທີ່ · ພະນັກງານ · ໜີ້ສິນ
+   ===================================================================== */
+.books-head-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.books-head-tools select{border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:14px;font-weight:700;background:#fff;color:var(--ink);min-height:42px}
+
+.book-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:6px 0 18px}
+.book-card{background:#fff;border:1px solid var(--line);border-radius:15px;padding:14px 16px;display:grid;gap:3px;
+  box-shadow:0 2px 10px rgba(18,58,40,.05)}
+.book-card span{font-size:12.5px;color:var(--muted);font-weight:700}
+.book-card strong{font-size:21px;color:var(--ink);letter-spacing:-.3px}
+.book-card small{font-size:11.5px;color:var(--muted)}
+.book-card.good strong{color:var(--green)}
+.book-card.bad strong{color:var(--red)}
+.book-card.hero{background:linear-gradient(140deg,var(--green),var(--green-dark));border-color:var(--green-dark)}
+.book-card.hero span,.book-card.hero small{color:rgba(255,255,255,.85)}
+.book-card.hero strong{color:#fff;font-size:23px}
+
+.book-tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:14px;-webkit-overflow-scrolling:touch}
+.book-tab{flex:0 0 auto;border:1px solid var(--line);background:#fff;color:#4d5d55;border-radius:999px;
+  padding:10px 16px;font-size:13.5px;font-weight:700;min-height:44px;white-space:nowrap}
+.book-tab.active{background:var(--green);border-color:var(--green);color:#fff}
+.book-pane{display:grid;gap:16px}
+
+.ledger-form,.asset-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:end;margin-top:12px}
+.ledger-form label,.asset-form label{display:grid;gap:6px;color:#34443b;font-size:13px;font-weight:700}
+.ledger-form input,.ledger-form select,.asset-form input,.asset-form select{width:100%;border:1px solid #ccd8d0;border-radius:10px;
+  padding:11px;font-size:14px;background:#fff;color:var(--ink);min-height:46px}
+.ledger-form button,.asset-form button{min-height:46px}
+.check-line{display:flex!important;align-items:center;gap:9px;font-size:13px;grid-template-columns:none}
+.check-line input{width:auto!important;min-height:0!important}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+
+.ledger-list{display:grid;gap:8px;margin-top:10px}
+.ledger-row{display:grid;grid-template-columns:34px 1fr auto auto;gap:11px;align-items:center;
+  border:1px solid var(--line);border-left-width:4px;border-radius:12px;padding:10px 12px;background:#fff}
+.ledger-row.in{border-left-color:var(--green)}
+.ledger-row.out{border-left-color:var(--red)}
+.lg-icon{font-size:18px;text-align:center}
+.lg-body b{display:block;font-size:14px;color:var(--ink)}
+.lg-body small{color:var(--muted);font-size:11.5px}
+.lg-amount{font-weight:800;font-size:15px;white-space:nowrap}
+.ledger-row.in .lg-amount{color:var(--green)}
+.ledger-row.out .lg-amount{color:var(--red)}
+.lg-lock{opacity:.4;font-size:13px}
+
+.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:10px}
+.book-table{width:100%;border-collapse:collapse;font-size:13px;min-width:640px}
+.book-table th,.book-table td{padding:10px 11px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+.book-table th{background:var(--cream);font-size:12px;color:#4d5d55;position:sticky;top:0}
+.book-table .num{text-align:right}
+.book-table .pos{color:var(--green)}
+.book-table .neg{color:var(--red)}
+.book-table tr.on{background:var(--green-pale)}
+.book-table small.blk{display:block;color:var(--muted);font-weight:400;font-size:11px}
+
+.asset-list{display:grid;gap:10px;margin-top:10px}
+.asset-row{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;
+  border:1px solid var(--line);border-radius:13px;padding:12px 14px;background:#fff}
+.asset-row.due{border-color:var(--red);background:#fff8f8}
+.asset-row.paid{opacity:.65}
+.ar-main b{display:block;font-size:14.5px;color:var(--ink)}
+.ar-main small{display:block;color:var(--muted);font-size:11.5px;margin-top:2px}
+.ar-main small.warn-line{color:var(--red);font-weight:700}
+.ar-money{text-align:right;display:grid;gap:2px}
+.ar-money strong{font-size:16px;color:var(--green-dark)}
+.ar-money span{font-size:11.5px;color:var(--muted)}
+.ar-tools{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.dep-bar{height:6px;border-radius:99px;background:#e8efea;overflow:hidden;margin:7px 0 5px;max-width:320px}
+.dep-bar i{display:block;height:100%;background:var(--red);border-radius:99px}
+.dep-bar.paid i{background:var(--green)}
+.dep-plan{grid-column:1/-1;margin-top:8px;overflow-x:auto}
+.dep-plan .book-table{min-width:0}
+.staff-total{margin:12px 2px 0;font-size:13.5px;color:#4d5d55}
+
+@media (max-width:670px){
+  .book-cards{grid-template-columns:1fr 1fr;gap:9px}
+  .book-card{padding:11px 12px;border-radius:13px}
+  .book-card strong{font-size:17px}
+  .book-card.hero{grid-column:1/-1}
+  .book-card.hero strong{font-size:20px}
+  .books-head-tools{width:100%}
+  .books-head-tools select{flex:1;min-width:0}
+  .ledger-form,.asset-form{grid-template-columns:1fr}
+  .ledger-row{grid-template-columns:28px 1fr auto;row-gap:6px}
+  .ledger-row .small-button,.ledger-row .lg-lock{grid-column:3;justify-self:end}
+  .asset-row{grid-template-columns:1fr}
+  .ar-money{text-align:left;display:flex;gap:10px;align-items:baseline}
+  .ar-tools{justify-content:flex-start}
+  .book-tab{padding:10px 13px;font-size:13px}
+}
+
+/* --- ໜ້າພິມ / ບັນທຶກເປັນ PDF --- */
+#printArea{display:none}
+@media print{
+  body>*{display:none!important}
+  #printArea{display:block!important;padding:0;color:#000;font-size:12px}
+  #printArea h1{font-size:20px;margin:0 0 2px}
+  #printArea h2{font-size:15px;margin:0 0 4px;color:#333}
+  #printArea h3{font-size:13px;margin:16px 0 6px;border-bottom:1px solid #999;padding-bottom:3px}
+  #printArea .meta{color:#666;font-size:11px;margin:0 0 12px}
+  #printArea table{width:100%;border-collapse:collapse;margin-bottom:8px}
+  #printArea td,#printArea th{padding:5px 7px;border-bottom:1px solid #ddd;text-align:left}
+  #printArea th{background:#f0f0f0;font-size:11px}
+  #printArea .num{text-align:right;white-space:nowrap}
+  #printArea .strong td{font-weight:700;background:#fafafa}
+  #printArea .total td{font-weight:800;border-top:2px solid #000;border-bottom:2px solid #000;font-size:13px}
+  #printArea .sum{max-width:460px}
+  #printArea .sign{margin-top:34px;font-size:12px}
+  @page{margin:14mm}
+}

@@ -43,7 +43,7 @@
   <link rel="preload" as="font" type="font/woff2" href="fonts/phetsarath-lao-400-normal.woff2" crossorigin />
   <link rel="preload" as="image" href="banner-640.webp" imagesrcset="banner-640.webp 640w, banner-1000.webp 1000w, banner-1290.webp 1290w" imagesizes="(max-width:670px) 100vw, (max-width:1200px) 92vw, 1170px" fetchpriority="high" />
   <link rel="preconnect" href="https://fsizqnygcklqlxuopbcc.supabase.co" crossorigin />
-  <link rel="stylesheet" href="style.css?v=21" />
+  <link rel="stylesheet" href="style.css?v=22" />
 </head>
 <body>
   <div class="app-shell">
@@ -210,6 +210,7 @@
         <button class="manager-tab" data-manager-tab="categories" type="button">▱ ໝວດສິນຄ້າ</button>
         <button class="manager-tab" data-manager-tab="payment" type="button">▧ ຮັບຊຳລະ</button>
         <button class="manager-tab" data-manager-tab="financial" type="button">₭ ການເງິນ</button>
+        <button class="manager-tab" data-manager-tab="books" type="button">📒 ບັນຊີ<span class="tab-badge hidden" id="booksBadge">0</span></button>
         <button class="manager-tab" data-manager-tab="profile" type="button">◉ ຂໍ້ມູນຮ້ານ</button>
         <button class="manager-tab" data-manager-tab="data" type="button">⇩ ຂໍ້ມູນ</button>
       </nav>
@@ -270,13 +271,13 @@
             <p class="muted small-copy">ຕັ້ງເທື່ອດຽວ ໃຊ້ທຸກເທື່ອທີ່ເພີ່ມສິນຄ້າ — ພິມແຕ່ລາຄາຢວນ ລະບົບຄິດເປັນກີບໃຫ້ເອງ<br>
               <b>ລູກຄ້າເຫັນແຕ່ລາຄາກີບ</b> ຕົວເລກຢວນ ຕົ້ນທຶນ ແລະ ກຳໄລ ເຫັນສະເພາະຜູ້ຈັດການ</p>
             <div class="price-rule-grid">
-              <label>1 ຢວນ (¥) = ກີບ<input id="ruleYuanRate" type="number" min="0" step="10" placeholder="3000" /></label>
-              <label>ຄ່າຂົນສົ່ງ / ຊິ້ນ (₭)<input id="ruleShipCost" type="number" min="0" step="1000" placeholder="28000" /></label>
+              <label>1 ຢວນ (¥) = ກີບ<input id="ruleYuanRate" type="number" min="0" step="any" placeholder="3000" /></label>
+              <label>ຄ່າຂົນສົ່ງ / ຊິ້ນ (₭)<input id="ruleShipCost" type="number" min="0" step="any" placeholder="28000" /></label>
               <label>ວິທີບວກກຳໄລ<select id="ruleProfitMode">
                 <option value="percent">ບວກເປັນ %</option>
                 <option value="fixed">ບວກເປັນຈຳນວນເງິນ (₭)</option>
               </select></label>
-              <label>ຄ່າກຳໄລ<input id="ruleProfitValue" type="number" min="0" step="1" placeholder="20" /><span class="input-hint" id="ruleProfitHint"></span></label>
+              <label>ຄ່າກຳໄລ<input id="ruleProfitValue" type="number" min="0" step="any" placeholder="20" /><span class="input-hint" id="ruleProfitHint"></span></label>
             </div>
             <div class="paste-actions">
               <button class="primary-button" type="button" id="savePriceRule">ບັນທຶກສູດ</button>
@@ -337,13 +338,13 @@
               <label>ຈຳນວນສະຕັອກ (ສຳລັບພ້ອມສົ່ງ)<input name="stock" type="number" min="0" step="1" value="0" required /></label>
               <label class="span-2">ລາຍລະອຽດ<textarea name="description" rows="2" placeholder="ບອກຮຸ່ນ, ສີ, ວັດສະດຸ ຫຼື ລາຍລະອຽດອື່ນ..."></textarea></label>
               <label class="span-2">ລິ້ງຮ້ານຕົ້ນທາງ / ເວັບທີ່ສັ່ງສິນຄ້າ<input name="supplierUrl" type="url" placeholder="https://..." /><span class="input-hint">ລິ້ງນີ້ເຫັນສະເພາະຜູ້ຈັດການ</span></label>
-              <label>ລາຄາຮ້ານຈີນ (¥)<input id="yuanInput" name="yuanPrice" type="number" min="0" step="0.01" placeholder="0" /><span class="input-hint" id="yuanHint">ພິມຢວນ ລະບົບຄິດເປັນກີບໃຫ້ເອງ</span></label>
-              <label>ຄ່າຂົນສົ່ງ / ຊິ້ນ (₭)<input id="shipInput" name="shipCost" type="number" min="0" step="1000" placeholder="0" /><span class="input-hint">ຄ່າເລີ່ມຕົ້ນມາຈາກສູດຂ້າງເທິງ ແກ້ສະເພາະສິນຄ້ານີ້ໄດ້</span></label>
-              <label>ລາຄາຕົ້ນທຶນລວມ / ຊິ້ນ (₭)<input id="costInput" name="cost" type="number" min="0" step="1000" placeholder="0" required /><span class="input-hint" id="costBreakdown">ຢວນ × ເລດ + ຄ່າຂົນສົ່ງ</span></label>
+              <label>ລາຄາຮ້ານຈີນ (¥)<input id="yuanInput" name="yuanPrice" type="number" min="0" step="any" placeholder="0" /><span class="input-hint" id="yuanHint">ພິມຢວນ ລະບົບຄິດເປັນກີບໃຫ້ເອງ</span></label>
+              <label>ຄ່າຂົນສົ່ງ / ຊິ້ນ (₭)<input id="shipInput" name="shipCost" type="number" min="0" step="any" placeholder="0" /><span class="input-hint">ຄ່າເລີ່ມຕົ້ນມາຈາກສູດຂ້າງເທິງ ແກ້ສະເພາະສິນຄ້ານີ້ໄດ້</span></label>
+              <label>ລາຄາຕົ້ນທຶນລວມ / ຊິ້ນ (₭)<input id="costInput" name="cost" type="number" min="0" step="any" placeholder="0" required /><span class="input-hint" id="costBreakdown">ຢວນ × ເລດ + ຄ່າຂົນສົ່ງ</span></label>
               <label>ວິທີຕັ້ງລາຄາ<select id="priceMode" name="priceMode"><option value="markup">ບວກກຳໄລເປັນ %</option><option value="fixed">ບວກກຳໄລເປັນຈຳນວນເງິນ</option><option value="manual">ພິມລາຄາຂາຍເອງ</option></select></label>
               <label id="markupField">ກຳໄລ (%)<input id="markupInput" name="markup" type="number" min="0" step="1" value="20" /><span class="quick-markup"><button type="button" data-markup="10">10%</button><button type="button" data-markup="20">20%</button><button type="button" data-markup="30">30%</button></span></label>
-              <label id="fixedProfitField" class="hidden">ກຳໄລ / ຊິ້ນ (₭)<input id="fixedProfitInput" name="fixedProfit" type="number" min="0" step="1000" placeholder="20000" /></label>
-              <label id="sellPriceField" class="hidden">ລາຄາຂາຍ (₭)<input id="sellPriceInput" name="sellPrice" type="number" min="0" step="1000" placeholder="0" /></label>
+              <label id="fixedProfitField" class="hidden">ກຳໄລ / ຊິ້ນ (₭)<input id="fixedProfitInput" name="fixedProfit" type="number" min="0" step="any" placeholder="20000" /></label>
+              <label id="sellPriceField" class="hidden">ລາຄາຂາຍ (₭)<input id="sellPriceInput" name="sellPrice" type="number" min="0" step="any" placeholder="0" /></label>
               <div class="price-preview"><span>ລາຄາຂາຍທີ່ໄດ້</span><strong id="calculatedPrice">0 ₭</strong><small id="profitPreview">ກຳໄລ 0 ₭ / ຊິ້ນ</small></div>
               <div class="span-2 form-actions"><button id="cancelProductForm" class="secondary-button" type="button">ຍົກເລີກ</button><button class="primary-button" type="submit">ບັນທຶກສິນຄ້າ</button></div>
             </form>
@@ -389,10 +390,118 @@
           </div>
         </section>
 
+        <section class="manager-pane hidden" data-pane="books">
+          <div class="pane-heading"><div><h2>ບັນຊີຮ້ານ</h2><p>ທຶນໝູນວຽນ · ຊັບສິນຄົງທີ່ · ພະນັກງານ · ໜີ້ສິນ</p></div>
+            <div class="books-head-tools">
+              <select id="bookMonth" aria-label="ເລືອກເດືອນ"></select>
+              <button class="small-button" type="button" id="exportMonthBtn">⬇ Excel</button>
+              <button class="small-button" type="button" id="printMonthBtn">🖨 PDF</button>
+            </div>
+          </div>
+
+          <!-- ພາບລວມ -->
+          <div class="book-cards" id="bookOverview"></div>
+
+          <!-- ແຖບຍ່ອຍ -->
+          <div class="book-tabs">
+            <button class="book-tab active" data-book-tab="cash" type="button">💵 ທຶນໝູນວຽນ</button>
+            <button class="book-tab" data-book-tab="months" type="button">📅 ຍ້ອນຫຼັງລາຍເດືອນ</button>
+            <button class="book-tab" data-book-tab="assets" type="button">🏭 ຊັບສິນຄົງທີ່</button>
+            <button class="book-tab" data-book-tab="staff" type="button">👷 ພະນັກງານ</button>
+            <button class="book-tab" data-book-tab="debts" type="button">🏦 ໜີ້ສິນ</button>
+          </div>
+
+          <!-- ① ທຶນໝູນວຽນ -->
+          <div class="book-pane" data-book-pane="cash">
+            <div class="panel">
+              <h3>ບັນທຶກເງິນເຂົ້າ-ອອກ</h3>
+              <p class="muted small-copy">ເຊັ່ນ ໃສ່ທຶນ · ຄ່າສ້ອມໂທລະສັບ · ຄ່າອາຫານພະນັກງານ · ຄ່າໄຟ ຯລຯ<br>
+                ສ່ວນອໍເດີ ລະບົບລົງບັນຊີໃຫ້ເອງ ບໍ່ຕ້ອງພິມຊ້ຳ</p>
+              <form id="ledgerForm" class="ledger-form">
+                <label>ປະເພດ<select name="kind">
+                  <option value="income">➕ ລາຍຮັບ (ເຊັ່ນ ຄ່າສ້ອມມືຖື)</option>
+                  <option value="expense">➖ ລາຍຈ່າຍ (ເຊັ່ນ ຄ່າອາຫານ, ຄ່າໄຟ)</option>
+                  <option value="capital">💰 ໃສ່ທຶນເພີ່ມ</option>
+                </select></label>
+                <label>ລາຍລະອຽດ<input name="description" placeholder="ຕົວຢ່າງ: ສ້ອມຈໍ iPhone 12" required /></label>
+                <label>ຈຳນວນເງິນ (₭)<input name="amount" type="number" min="1" step="any" placeholder="0" required /></label>
+                <label>ວັນທີ<input name="happenedAt" type="date" /></label>
+                <button class="primary-button" type="submit">+ ບັນທຶກ</button>
+              </form>
+            </div>
+            <div class="panel">
+              <h3>ລາຍການໃນເດືອນທີ່ເລືອກ</h3>
+              <div id="ledgerList" class="ledger-list"></div>
+            </div>
+          </div>
+
+          <!-- ② ຍ້ອນຫຼັງລາຍເດືອນ -->
+          <div class="book-pane hidden" data-book-pane="months">
+            <div class="panel">
+              <h3>ສະຫຼຸບແຕ່ລະເດືອນ</h3>
+              <p class="muted small-copy">ບັນທຶກໄວ້ຕະຫຼອດ ບໍ່ຫາຍ ນອກຈາກຈະລຶບອໍເດີນັ້ນອອກ</p>
+              <div class="table-scroll"><table class="book-table" id="monthTable"></table></div>
+            </div>
+          </div>
+
+          <!-- ③ ຊັບສິນຄົງທີ່ -->
+          <div class="book-pane hidden" data-book-pane="assets">
+            <div class="panel">
+              <h3>ເພີ່ມຊັບສິນ</h3>
+              <p class="muted small-copy">ເຄື່ອງມື ອຸປະກອນ ຕູ້ ໂຕະ ຯລຯ — ລະບົບຄິດຄ່າເສື່ອມລາຄາໃຫ້ແຕ່ລະປີ</p>
+              <form id="assetForm" class="asset-form">
+                <label>ຊື່ຊັບສິນ<input name="name" placeholder="ຕົວຢ່າງ: ເຄື່ອງເປົ່າລົມຮ້ອນ" required /></label>
+                <label>ໝວດ<input name="category" placeholder="ເຄື່ອງມືສ້ອມ" /></label>
+                <label>ລາຄາຊື້ (₭)<input name="cost" type="number" min="0" step="any" required /></label>
+                <label>ວັນທີຊື້<input name="buyDate" type="date" /></label>
+                <label>ອາຍຸໃຊ້ງານ (ປີ)<input name="lifeYears" type="number" min="0.5" step="any" value="5" required /></label>
+                <label>ມູນຄ່າຊາກ (₭)<input name="salvage" type="number" min="0" step="any" value="0" /><span class="input-hint">ລາຄາທີ່ຄາດວ່າຈະຂາຍຕໍ່ໄດ້ຕອນໝົດອາຍຸ</span></label>
+                <label class="check-line"><input name="spendCash" type="checkbox" /> ຫັກເງິນອອກຈາກທຶນໝູນວຽນນຳ</label>
+                <button class="primary-button" type="submit">+ ເພີ່ມຊັບສິນ</button>
+              </form>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><h3>ລາຍການຊັບສິນ</h3><button class="small-button" type="button" id="exportAssetsBtn">⬇ Excel</button></div>
+              <div id="assetList" class="asset-list"></div>
+            </div>
+          </div>
+
+          <!-- ④ ພະນັກງານ -->
+          <div class="book-pane hidden" data-book-pane="staff">
+            <div class="panel">
+              <h3>ເພີ່ມພະນັກງານ</h3>
+              <form id="employeeForm" class="asset-form">
+                <label>ຊື່<input name="name" placeholder="ຕົວຢ່າງ: ນາງ ນ້ອຍ" required /></label>
+                <label>ໜ້າທີ່<input name="role" placeholder="ຊ່າງສ້ອມ" /></label>
+                <label>ເງິນເດືອນ (₭)<input name="salary" type="number" min="0" step="any" required /></label>
+                <label>ມື້ຈ່າຍຂອງເດືອນ<input name="payDay" type="number" min="1" max="31" value="30" required /></label>
+                <button class="primary-button" type="submit">+ ເພີ່ມພະນັກງານ</button>
+              </form>
+            </div>
+            <div class="panel"><h3>ລາຍຊື່ພະນັກງານ</h3><div id="employeeList" class="asset-list"></div></div>
+          </div>
+
+          <!-- ⑤ ໜີ້ສິນ -->
+          <div class="book-pane hidden" data-book-pane="debts">
+            <div class="panel">
+              <h3>ເພີ່ມໜີ້ສິນ</h3>
+              <p class="muted small-copy">ເງິນກູ້ ຫຼື ຄ່າສິນຄ້າທີ່ຍັງຄ້າງຈ່າຍ</p>
+              <form id="debtForm" class="asset-form">
+                <label>ຊື່ລາຍການ<input name="name" placeholder="ຕົວຢ່າງ: ກູ້ທະນາຄານ ຊື້ເຄື່ອງມື" required /></label>
+                <label>ຈຳນວນເງິນ (₭)<input name="amount" type="number" min="0" step="any" required /></label>
+                <label>ກຳນົດຈ່າຍ<input name="dueDate" type="date" /></label>
+                <label class="check-line"><input name="cashIn" type="checkbox" /> ເງິນກູ້ນີ້ເຂົ້າທຶນໝູນວຽນນຳ</label>
+                <button class="primary-button" type="submit">+ ເພີ່ມໜີ້ສິນ</button>
+              </form>
+            </div>
+            <div class="panel"><h3>ລາຍການໜີ້ສິນ</h3><div id="debtList" class="asset-list"></div></div>
+          </div>
+        </section>
+
         <section class="manager-pane hidden" data-pane="financial">
           <div class="pane-heading"><div><h2>ສະຫຼຸບການເງິນ</h2><p>ນັບສະເພາະອໍເດີທີ່ສະຖານະ “ສຳເລັດ” ເທົ່ານັ້ນ</p></div></div>
           <div id="financialGrid" class="financial-grid"></div>
-          <div class="finance-columns"><div class="panel"><h3>ບັນທຶກຄ່າໃຊ້ຈ່າຍເພີ່ມເຕີມ</h3><p class="muted small-copy">ເຊັ່ນ ຄ່າສົ່ງ, ຄ່າຫຸ້ມຫໍ່ ຫຼື ຄ່າໂຄສະນາ ເພື່ອໃຫ້ກຳໄລສຸດທິຖືກຕ້ອງ.</p><form id="expenseForm" class="expense-form"><label>ລາຍການ<input name="description" placeholder="ຕົວຢ່າງ: ຄ່າສົ່ງສິນຄ້າ" required /></label><label>ຈຳນວນເງິນ (₭)<input name="amount" type="number" min="1" step="1000" placeholder="0" required /></label><button class="primary-button" type="submit">+ ບັນທຶກຄ່າໃຊ້ຈ່າຍ</button></form></div><div class="panel"><h3>ຄ່າໃຊ້ຈ່າຍລ່າສຸດ</h3><div id="expenseList"></div></div></div>
+          <div class="finance-columns"><div class="panel"><h3>ບັນທຶກຄ່າໃຊ້ຈ່າຍເພີ່ມເຕີມ</h3><p class="muted small-copy">ເຊັ່ນ ຄ່າສົ່ງ, ຄ່າຫຸ້ມຫໍ່ ຫຼື ຄ່າໂຄສະນາ ເພື່ອໃຫ້ກຳໄລສຸດທິຖືກຕ້ອງ.</p><form id="expenseForm" class="expense-form"><label>ລາຍການ<input name="description" placeholder="ຕົວຢ່າງ: ຄ່າສົ່ງສິນຄ້າ" required /></label><label>ຈຳນວນເງິນ (₭)<input name="amount" type="number" min="1" step="any" placeholder="0" required /></label><button class="primary-button" type="submit">+ ບັນທຶກຄ່າໃຊ້ຈ່າຍ</button></form></div><div class="panel"><h3>ຄ່າໃຊ້ຈ່າຍລ່າສຸດ</h3><div id="expenseList"></div></div></div>
         </section>
 
         <section class="manager-pane hidden" data-pane="profile">
@@ -412,7 +521,7 @@
   </section>
 
   <div id="toast" class="toast hidden" role="status"></div>
-  <script src="supabase-js.js?v=21" defer></script>
-  <script type="module" src="app.js?v=21"></script>
+  <script src="supabase-js.js?v=22" defer></script>
+  <script type="module" src="app.js?v=22"></script>
 </body>
 </html>

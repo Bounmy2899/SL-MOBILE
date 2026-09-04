@@ -37,7 +37,11 @@ let data = {
   categories: [],
   products: [],
   orders: [],
-  expenses: []
+  expenses: [],
+  ledger: [],      // ສະໝຸດບັນຊີເງິນ
+  assets: [],      // ຊັບສິນຄົງທີ່
+  employees: [],   // ພະນັກງານ
+  debts: []        // ໜີ້ສິນ
 };
 
 let cart = readJson("phonemani-cart", []);
@@ -196,7 +200,7 @@ function orderTotal(order) { return order.items.reduce((sum, item) => sum + item
 // Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
 // ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
 // ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
-const APP_VERSION = "21 · ແຊຣ໌ລິ້ງໂຜ່ຮູບຮ້ານ";
+const APP_VERSION = "22 · ລະບົບບັນຊີ";
 let uploadSeq = 0;
 function safeFileName(file) {
   const raw = String(file?.name || "");
@@ -659,6 +663,107 @@ function paymentLabel(method) { return { cod: "ເກັບເງິນປາຍ
 // ---------- ຕົວຊ່ວຍເລື່ອງສະຕັອກ / ອໍເດີ ----------
 const productById = (id) => data.products.find(product => String(product.id) === String(id));
 const orderById = (id) => data.orders.find(order => String(order.id) === String(id));
+// =======================================================================
+//  ລະບົບບັນຊີ — ທຶນໝູນວຽນ · ຊັບສິນຄົງທີ່ · ພະນັກງານ · ໜີ້ສິນ
+// =======================================================================
+// ຫຼັກການ: ທຸກເທື່ອທີ່ເງິນເຂົ້າ ຫຼື ອອກ ຈະລົງ 1 ແຖວໃນ ledger
+//   amount ບວກ = ເງິນເຂົ້າ  ·  amount ລົບ = ເງິນອອກ
+//   ແຖວທີ່ຜູກກັບອໍເດີ ຈະຫາຍໄປເອງເມື່ອລຶບອໍເດີ (ເງິນທຶນກັບຄືນ)
+
+const LEDGER_KINDS = {
+  capital:   { label: "ໃສ່ທຶນ",              icon: "💰" },
+  orderCost: { label: "ຕົ້ນທຶນສິນຄ້າ (ອໍເດີ)", icon: "📦" },
+  orderSale: { label: "ຂາຍສຳເລັດ (ອໍເດີ)",   icon: "🧾" },
+  income:    { label: "ລາຍຮັບອື່ນ",           icon: "➕" },
+  expense:   { label: "ລາຍຈ່າຍ",              icon: "➖" },
+  salary:    { label: "ເງິນເດືອນ",            icon: "👷" },
+  assetBuy:  { label: "ຊື້ຊັບສິນ",            icon: "🏭" },
+  loanIn:    { label: "ຮັບເງິນກູ້",           icon: "🏦" },
+  loanPay:   { label: "ຈ່າຍໜີ້",              icon: "💳" }
+};
+const kindLabel = (k) => LEDGER_KINDS[k]?.label || k;
+const kindIcon  = (k) => LEDGER_KINDS[k]?.icon || "•";
+
+// ວັນທີແບບທ້ອງຖິ່ນ YYYY-MM-DD (ໃຊ້ເປັນວັນທີເກີດລາຍການ)
+const today = () => new Date().toLocaleDateString("en-CA");
+const monthOf = (d) => String(d || "").slice(0, 7);            // 2026-09
+const thisMonth = () => today().slice(0, 7);
+const monthLabel = (ym) => {
+  const names = ["ມັງກອນ","ກຸມພາ","ມີນາ","ເມສາ","ພຶດສະພາ","ມິຖຸນາ","ກໍລະກົດ","ສິງຫາ","ກັນຍາ","ຕຸລາ","ພະຈິກ","ທັນວາ"];
+  const [y, m] = String(ym || "").split("-");
+  return names[Number(m) - 1] ? `${names[Number(m) - 1]} ${y}` : ym;
+};
+
+// ---- ຂຽນ 1 ແຖວລົງບັນຊີ ----
+async function addLedger(row) {
+  const payload = {
+    kind: row.kind, description: row.description || "",
+    amount: Number(row.amount) || 0,
+    happenedAt: row.happenedAt || today(),
+    orderId: row.orderId || null, ref: row.ref || ""
+  };
+  const { error } = await supabase.from("ledger").insert(payload);
+  if (error) { console.error("ledger:", error); toast(`ບັນທຶກບັນຊີບໍ່ໄດ້: ${error.message || ""}`); return false; }
+  await refreshLedger();
+  return true;
+}
+
+// ລຶບແຖວບັນຊີຂອງອໍເດີໜຶ່ງ ສະເພາະປະເພດທີ່ລະບຸ (ໃຊ້ຕອນຖອຍສະຖານະ)
+async function removeOrderLedger(orderId, kind) {
+  const q = supabase.from("ledger").delete().eq("orderId", orderId);
+  const { error } = await (kind ? q.eq("kind", kind) : q);
+  if (error) console.error("ledger del:", error);
+  await refreshLedger();
+}
+const orderLedgerHas = (orderId, kind) =>
+  data.ledger.some(r => String(r.orderId) === String(orderId) && r.kind === kind);
+
+// ---- ຍອດລວມ ----
+const cashBalance = () => data.ledger.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+const stockValue  = () => data.products.reduce((sum, p) => sum + Number(p.cost || 0) * Number(p.stock || 0), 0);
+const debtLeft    = (d) => Math.max(0, Number(d.amount || 0) - Number(d.paid || 0));
+const totalDebt   = () => data.debts.reduce((sum, d) => sum + debtLeft(d), 0);
+
+// ---- ຄ່າເສື່ອມລາຄາ ແບບເສັ້ນຊື່ ----
+// ຄ່າເສື່ອມຕໍ່ປີ = (ລາຄາຊື້ − ມູນຄ່າຊາກ) ÷ ອາຍຸໃຊ້ງານ
+function depreciation(asset) {
+  const cost = Number(asset.cost || 0);
+  const salvage = Math.min(Number(asset.salvage || 0), cost);
+  const life = Math.max(0.5, Number(asset.lifeYears || 1));
+  const perYear = (cost - salvage) / life;
+  const start = new Date(asset.buyDate || today());
+  const years = Math.max(0, (Date.now() - start.getTime()) / (365.25 * 24 * 3600 * 1000));
+  const used = Math.min(life, years);
+  const accumulated = Math.round(perYear * used);
+  const bookValue = Math.max(salvage, cost - accumulated);
+  return { perYear: Math.round(perYear), perMonth: Math.round(perYear / 12), accumulated, bookValue,
+           yearsUsed: used, life, salvage, done: years >= life };
+}
+// ຕາຕະລາງຄ່າເສື່ອມແຕ່ລະປີ
+function depreciationRows(asset) {
+  const { perYear, life, salvage } = depreciation(asset);
+  const cost = Number(asset.cost || 0);
+  const startYear = new Date(asset.buyDate || today()).getFullYear();
+  const rows = []; let book = cost;
+  for (let i = 0; i < Math.ceil(life); i++) {
+    const amount = Math.min(perYear, Math.max(0, book - salvage));
+    book = Math.max(salvage, book - amount);
+    rows.push({ year: startYear + i, amount, book });
+  }
+  return rows;
+}
+const assetBookTotal = () => data.assets.reduce((sum, a) => sum + depreciation(a).bookValue, 0);
+
+// ---- ເງິນເດືອນ: ຮອດມື້ຈ່າຍ ແລະ ຍັງບໍ່ໄດ້ຈ່າຍເດືອນນີ້ ----
+function salaryDue(employee, ym = thisMonth()) {
+  if (employee.active === false) return false;   // ພັກວຽກ = ບໍ່ຕ້ອງຈ່າຍ
+  const paid = data.ledger.some(r => r.kind === "salary" && r.ref === `emp:${employee.id}` && monthOf(r.happenedAt) === ym);
+  if (paid) return false;
+  const day = new Date().getDate();
+  return day >= Number(employee.payDay || 30) || ym !== thisMonth();
+}
+const salaryDueList = () => data.employees.filter(e => salaryDue(e));
+
 function orderCost(order) { return order.items.reduce((sum, item) => sum + (Number(item.cost) || 0) * item.quantity, 0); }
 
 // ລາຍການທີ່ສະຕັອກບໍ່ພໍ ສຳລັບອໍເດີໜຶ່ງ
@@ -683,6 +788,425 @@ async function deductStockFor(order) {
 }
 
 // ກົດ “ຮັບອໍເດີ” — ແຍກເສັ້ນທາງຕາມວ່າຮ້ານມີສະຕັອກຫຼືບໍ່
+// ---------- ຕົວຈັດການເຫດການ ຂອງໜ້າບັນຊີ ----------
+function wireBooks() {
+  const pane = document.querySelector('[data-pane="books"]');
+  if (!pane) return;
+
+  $("#bookMonth")?.addEventListener("change", e => { bookMonth = e.target.value; renderBooks(); });
+  $("#exportMonthBtn")?.addEventListener("click", () => exportMonthCsv(bookMonth));
+  $("#printMonthBtn")?.addEventListener("click", () => printMonthReport(bookMonth));
+  $("#exportAssetsBtn")?.addEventListener("click", exportAssetsCsv);
+
+  // ແຖບຍ່ອຍ
+  pane.addEventListener("click", async event => {
+    const tab = event.target.closest("[data-book-tab]");
+    if (tab) {
+      bookTab = tab.dataset.bookTab;
+      pane.querySelectorAll(".book-tab").forEach(b => b.classList.toggle("active", b.dataset.bookTab === bookTab));
+      pane.querySelectorAll(".book-pane").forEach(b => b.classList.toggle("hidden", b.dataset.bookPane !== bookTab));
+      return;
+    }
+    const monthCsv = event.target.closest("[data-month-csv]");
+    if (monthCsv) return exportMonthCsv(monthCsv.dataset.monthCsv);
+
+    const plan = event.target.closest("[data-asset-plan]");
+    if (plan) return $(`#plan-${plan.dataset.assetPlan}`)?.classList.toggle("hidden");
+
+    // ---- ລຶບແຖວບັນຊີທີ່ພິມເອງ ----
+    const delLg = event.target.closest("[data-del-ledger]");
+    if (delLg) {
+      const row = data.ledger.find(r => String(r.id) === delLg.dataset.delLedger);
+      if (!row) return;
+      if (!confirm(`ລຶບລາຍການນີ້ບໍ?\n\n${row.description}\n${money(Math.abs(row.amount))}\n\nຍອດເງິນຈະຖືກປັບຄືນທັນທີ`)) return;
+      delLg.disabled = true;
+      const { error } = await supabase.from("ledger").delete().eq("id", row.id);
+      if (error) { toast("ລຶບບໍ່ໄດ້: " + error.message); delLg.disabled = false; return; }
+      await refreshLedger(); toast("ລຶບແລ້ວ · ປັບຍອດເງິນຄືນ");
+      return;
+    }
+
+    // ---- ຊັບສິນ ----
+    const delAs = event.target.closest("[data-del-asset]");
+    if (delAs) {
+      const a = data.assets.find(x => String(x.id) === delAs.dataset.delAsset); if (!a) return;
+      if (!confirm(`ລຶບຊັບສິນ “${a.name}” ບໍ?`)) return;
+      const { error } = await supabase.from("assets").delete().eq("id", a.id);
+      if (error) return toast("ລຶບບໍ່ໄດ້: " + error.message);
+      await refreshAssets(); toast("ລຶບຊັບສິນແລ້ວ");
+      return;
+    }
+
+    // ---- ພະນັກງານ ----
+    const pay = event.target.closest("[data-pay-salary]");
+    if (pay) {
+      const e = data.employees.find(x => String(x.id) === pay.dataset.paySalary); if (!e) return;
+      const left = cashBalance() - Number(e.salary || 0);
+      if (!confirm(`ຈ່າຍເງິນເດືອນ ${e.name}\n\nຈຳນວນ ${money(e.salary)}\nຈ່າຍແລ້ວເງິນຈະເຫຼືອ ${money(left)}\n\nຢືນຢັນບໍ?`)) return;
+      pay.disabled = true;
+      await addLedger({ kind: "salary", amount: -Number(e.salary || 0), ref: `emp:${e.id}`,
+        description: `ເງິນເດືອນ ${e.name} · ${monthLabel(thisMonth())}` });
+      toast(`ຈ່າຍເງິນເດືອນ ${e.name} ແລ້ວ`);
+      return;
+    }
+    const delEmp = event.target.closest("[data-del-emp]");
+    if (delEmp) {
+      const e = data.employees.find(x => String(x.id) === delEmp.dataset.delEmp); if (!e) return;
+      if (!confirm(`ລຶບ “${e.name}” ອອກຈາກລາຍຊື່ບໍ?\n(ປະຫວັດການຈ່າຍເງິນເດືອນຍັງຢູ່ຄືເກົ່າ)`)) return;
+      const { error } = await supabase.from("employees").delete().eq("id", e.id);
+      if (error) return toast("ລຶບບໍ່ໄດ້: " + error.message);
+      await refreshEmployees(); toast("ລຶບແລ້ວ");
+      return;
+    }
+
+    // ---- ໜີ້ສິນ ----
+    const payDebt = event.target.closest("[data-pay-debt]");
+    if (payDebt) {
+      const d = data.debts.find(x => String(x.id) === payDebt.dataset.payDebt); if (!d) return;
+      const left = debtLeft(d);
+      const input = prompt(`ຈ່າຍໜີ້ “${d.name}”\nຍັງຄ້າງ ${money(left)}\n\nຈ່າຍເທົ່າໃດ? (₭)`, String(left));
+      if (input == null) return;
+      const amt = Math.min(left, Number(input) || 0);
+      if (amt <= 0) return toast("ຈຳນວນເງິນບໍ່ຖືກຕ້ອງ");
+      const { error } = await supabase.from("debts").update({ paid: Number(d.paid || 0) + amt }).eq("id", d.id);
+      if (error) return toast("ບັນທຶກບໍ່ໄດ້: " + error.message);
+      await addLedger({ kind: "loanPay", amount: -amt, ref: `debt:${d.id}`, description: `ຈ່າຍໜີ້ ${d.name}` });
+      await refreshDebts(); toast(`ຈ່າຍໜີ້ ${money(amt)} ແລ້ວ`);
+      return;
+    }
+    const delDebt = event.target.closest("[data-del-debt]");
+    if (delDebt) {
+      const d = data.debts.find(x => String(x.id) === delDebt.dataset.delDebt); if (!d) return;
+      if (!confirm(`ລຶບລາຍການໜີ້ “${d.name}” ບໍ?`)) return;
+      const { error } = await supabase.from("debts").delete().eq("id", d.id);
+      if (error) return toast("ລຶບບໍ່ໄດ້: " + error.message);
+      await refreshDebts(); toast("ລຶບແລ້ວ");
+    }
+  });
+
+  // ---- ຟອມ: ບັນທຶກເງິນເຂົ້າ-ອອກ ----
+  $("#ledgerForm")?.addEventListener("submit", async event => {
+    event.preventDefault();
+    const fd = new FormData(event.target);
+    const kind = fd.get("kind");
+    const raw = Math.abs(Number(fd.get("amount") || 0));
+    if (raw <= 0) return toast("ໃສ່ຈຳນວນເງິນກ່ອນ");
+    const amount = kind === "expense" ? -raw : raw;
+    const button = event.target.querySelector("button[type=submit]"); button.disabled = true;
+    const done = await addLedger({ kind, amount, description: String(fd.get("description") || "").trim(),
+      happenedAt: fd.get("happenedAt") || today() });
+    button.disabled = false;
+    if (done) { event.target.reset(); toast(kind === "expense" ? "ບັນທຶກລາຍຈ່າຍແລ້ວ" : "ບັນທຶກເງິນເຂົ້າແລ້ວ"); }
+  });
+
+  // ---- ຟອມ: ຊັບສິນ ----
+  $("#assetForm")?.addEventListener("submit", async event => {
+    event.preventDefault();
+    const fd = new FormData(event.target);
+    const row = { name: String(fd.get("name")).trim(), category: String(fd.get("category") || "").trim(),
+      cost: Number(fd.get("cost") || 0), buyDate: fd.get("buyDate") || today(),
+      lifeYears: Number(fd.get("lifeYears") || 5), salvage: Number(fd.get("salvage") || 0) };
+    const button = event.target.querySelector("button[type=submit]"); button.disabled = true;
+    const { data: made, error } = await supabase.from("assets").insert(row).select();
+    button.disabled = false;
+    if (error) return toast("ບັນທຶກບໍ່ໄດ້: " + error.message);
+    if (fd.get("spendCash")) {
+      await addLedger({ kind: "assetBuy", amount: -row.cost, ref: `asset:${made?.[0]?.id || ""}`,
+        description: `ຊື້ຊັບສິນ ${row.name}` });
+    }
+    await refreshAssets(); event.target.reset(); toast("ເພີ່ມຊັບສິນແລ້ວ");
+  });
+
+  // ---- ຟອມ: ພະນັກງານ ----
+  $("#employeeForm")?.addEventListener("submit", async event => {
+    event.preventDefault();
+    const fd = new FormData(event.target);
+    const row = { name: String(fd.get("name")).trim(), role: String(fd.get("role") || "").trim(),
+      salary: Number(fd.get("salary") || 0), payDay: Math.min(31, Math.max(1, Number(fd.get("payDay") || 30))), active: true };
+    const button = event.target.querySelector("button[type=submit]"); button.disabled = true;
+    const { error } = await supabase.from("employees").insert(row);
+    button.disabled = false;
+    if (error) return toast("ບັນທຶກບໍ່ໄດ້: " + error.message);
+    await refreshEmployees(); event.target.reset(); toast("ເພີ່ມພະນັກງານແລ້ວ");
+  });
+
+  // ---- ຟອມ: ໜີ້ສິນ ----
+  $("#debtForm")?.addEventListener("submit", async event => {
+    event.preventDefault();
+    const fd = new FormData(event.target);
+    const row = { name: String(fd.get("name")).trim(), amount: Number(fd.get("amount") || 0),
+      dueDate: fd.get("dueDate") || null, paid: 0 };
+    const button = event.target.querySelector("button[type=submit]"); button.disabled = true;
+    const { data: made, error } = await supabase.from("debts").insert(row).select();
+    button.disabled = false;
+    if (error) return toast("ບັນທຶກບໍ່ໄດ້: " + error.message);
+    if (fd.get("cashIn")) {
+      await addLedger({ kind: "loanIn", amount: row.amount, ref: `debt:${made?.[0]?.id || ""}`,
+        description: `ຮັບເງິນກູ້ ${row.name}` });
+    }
+    await refreshDebts(); event.target.reset(); toast("ເພີ່ມໜີ້ສິນແລ້ວ");
+  });
+}
+
+// ---- ສະຫຼຸບເດືອນໜຶ່ງ ----
+function monthSummary(ym) {
+  const rows = data.ledger.filter(r => monthOf(r.happenedAt) === ym);
+  const by = (k) => rows.filter(r => r.kind === k).reduce((s, r) => s + Number(r.amount || 0), 0);
+  const sales = by("orderSale"), cost = -by("orderCost");
+  const otherIncome = by("income"), expense = -by("expense"), salary = -by("salary");
+  const gross = sales - cost;
+  return { ym, sales, cost, gross, otherIncome, expense, salary,
+           net: gross + otherIncome - expense - salary,
+           orders: new Set(rows.filter(r => r.kind === "orderSale").map(r => r.orderId)).size };
+}
+// ທຸກເດືອນທີ່ມີຂໍ້ມູນ (ໃໝ່ສຸດກ່ອນ)
+function allMonths() {
+  const set = new Set(data.ledger.map(r => monthOf(r.happenedAt)).filter(Boolean));
+  set.add(thisMonth());
+  return [...set].sort().reverse();
+}
+
+let bookMonth = null, bookTab = "cash";
+
+function renderBooks() {
+  if (!$("#bookOverview")) return;
+  const months = allMonths();
+  if (!bookMonth || !months.includes(bookMonth)) bookMonth = months[0] || thisMonth();
+  const sel = $("#bookMonth");
+  sel.innerHTML = months.map(m => `<option value="${m}" ${m === bookMonth ? "selected" : ""}>${escapeHtml(monthLabel(m))}</option>`).join("");
+
+  // ---- ບັດພາບລວມ ----
+  const cash = cashBalance(), stock = stockValue(), fixed = assetBookTotal(), debt = totalDebt();
+  const worth = cash + stock + fixed - debt;
+  const sum = monthSummary(bookMonth);
+  const card = (label, value, note, cls = "") =>
+    `<div class="book-card ${cls}"><span>${escapeHtml(label)}</span><strong>${money(value)}</strong>${note ? `<small>${note}</small>` : ""}</div>`;
+  $("#bookOverview").innerHTML =
+    card("💵 ເງິນສົດ / ທຶນໝູນວຽນ", cash, "ຍອດປັດຈຸບັນ", cash < 0 ? "bad" : "good") +
+    card("📦 ມູນຄ່າສະຕັອກ", stock, "ຄິດຕາມຕົ້ນທຶນ") +
+    card("🏭 ຊັບສິນຄົງທີ່", fixed, "ຫຼັງຫັກຄ່າເສື່ອມ") +
+    card("🏦 ໜີ້ສິນ", debt, "ຍັງຄ້າງຈ່າຍ", debt > 0 ? "bad" : "") +
+    card("🏆 ມູນຄ່າກິດຈະການ", worth, "ໝູນວຽນ + ຄົງທີ່ − ໜີ້ສິນ", "hero") +
+    card(`📅 ກຳໄລສຸດທິ ${monthLabel(bookMonth)}`, sum.net, `ຂາຍ ${money(sum.sales)}`, sum.net >= 0 ? "good" : "bad");
+
+  // ---- ① ລາຍການໃນເດືອນ ----
+  const rows = data.ledger.filter(r => monthOf(r.happenedAt) === bookMonth)
+    .sort((a, b) => String(b.happenedAt).localeCompare(String(a.happenedAt)) || Number(b.id) - Number(a.id));
+  $("#ledgerList").innerHTML = rows.length ? rows.map(r => {
+    const amt = Number(r.amount || 0), locked = !!r.orderId;
+    return `<div class="ledger-row ${amt >= 0 ? "in" : "out"}">
+      <span class="lg-icon">${kindIcon(r.kind)}</span>
+      <div class="lg-body"><b>${escapeHtml(r.description || kindLabel(r.kind))}</b>
+        <small>${escapeHtml(r.happenedAt)} · ${escapeHtml(kindLabel(r.kind))}${locked ? " · ມາຈາກອໍເດີ" : ""}</small></div>
+      <span class="lg-amount">${amt >= 0 ? "+" : "−"}${money(Math.abs(amt))}</span>
+      ${locked ? `<span class="lg-lock" title="ລາຍການນີ້ມາຈາກອໍເດີ ຈະຫາຍໄປເມື່ອລຶບອໍເດີນັ້ນ">🔒</span>`
+               : `<button class="small-button delete" type="button" data-del-ledger="${r.id}">ລຶບ</button>`}
+    </div>`;
+  }).join("") : `<p class="muted small-copy" style="padding:14px">ຍັງບໍ່ມີລາຍການໃນເດືອນນີ້</p>`;
+
+  // ---- ② ຕາຕະລາງລາຍເດືອນ ----
+  const table = $("#monthTable");
+  if (table) {
+    table.innerHTML = `<thead><tr><th>ເດືອນ</th><th class="num">ຍອດຂາຍ</th><th class="num">ຕົ້ນທຶນ</th>
+      <th class="num">ກຳໄລຂັ້ນຕົ້ນ</th><th class="num">ລາຍຮັບອື່ນ</th><th class="num">ລາຍຈ່າຍ</th>
+      <th class="num">ເງິນເດືອນ</th><th class="num">ກຳໄລສຸດທິ</th><th></th></tr></thead>
+      <tbody>${months.map(m => { const x = monthSummary(m);
+        return `<tr class="${m === bookMonth ? "on" : ""}"><td><b>${escapeHtml(monthLabel(m))}</b><small class="blk">${x.orders} ອໍເດີ</small></td>
+        <td class="num">${money(x.sales)}</td><td class="num">${money(x.cost)}</td>
+        <td class="num">${money(x.gross)}</td><td class="num">${money(x.otherIncome)}</td>
+        <td class="num">${money(x.expense)}</td><td class="num">${money(x.salary)}</td>
+        <td class="num ${x.net >= 0 ? "pos" : "neg"}"><b>${money(x.net)}</b></td>
+        <td><button class="small-button" type="button" data-month-csv="${m}">⬇</button></td></tr>`; }).join("")}</tbody>`;
+  }
+
+  // ---- ③ ຊັບສິນຄົງທີ່ ----
+  $("#assetList").innerHTML = data.assets.length ? data.assets.map(a => {
+    const d = depreciation(a);
+    const pct = Number(a.cost) ? Math.min(100, Math.round(d.accumulated / Number(a.cost) * 100)) : 0;
+    return `<div class="asset-row">
+      <div class="ar-main"><b>${escapeHtml(a.name)}</b>
+        <small>${escapeHtml(a.category || "ບໍ່ລະບຸໝວດ")} · ຊື້ ${escapeHtml(a.buyDate)} · ອາຍຸ ${Number(a.lifeYears)} ປີ</small>
+        <div class="dep-bar"><i style="width:${pct}%"></i></div>
+        <small>ຄ່າເສື່ອມ ${money(d.perYear)}/ປີ (${money(d.perMonth)}/ເດືອນ) · ສະສົມແລ້ວ ${money(d.accumulated)}${d.done ? " · ໝົດອາຍຸແລ້ວ" : ""}</small>
+      </div>
+      <div class="ar-money"><span>ລາຄາຊື້ ${money(a.cost)}</span><strong>ຄົງເຫຼືອ ${money(d.bookValue)}</strong></div>
+      <div class="ar-tools">
+        <button class="small-button" type="button" data-asset-plan="${a.id}">ຕາຕະລາງ</button>
+        <button class="small-button delete" type="button" data-del-asset="${a.id}">ລຶບ</button>
+      </div>
+      <div class="dep-plan hidden" id="plan-${a.id}">
+        <table class="book-table"><thead><tr><th>ປີ</th><th class="num">ຄ່າເສື່ອມ</th><th class="num">ມູນຄ່າຄົງເຫຼືອ</th></tr></thead>
+        <tbody>${depreciationRows(a).map(r => `<tr><td>${r.year}</td><td class="num">${money(r.amount)}</td><td class="num">${money(r.book)}</td></tr>`).join("")}</tbody></table>
+      </div>
+    </div>`;
+  }).join("") : `<p class="muted small-copy" style="padding:14px">ຍັງບໍ່ມີຊັບສິນ</p>`;
+
+  // ---- ④ ພະນັກງານ ----
+  const due = salaryDueList();
+  $("#employeeList").innerHTML = (data.employees.length ? data.employees.map(e => {
+    const isDue = salaryDue(e);
+    return `<div class="asset-row ${isDue ? "due" : ""}">
+      <div class="ar-main"><b>${escapeHtml(e.name)}</b>
+        <small>${escapeHtml(e.role || "ພະນັກງານ")} · ຈ່າຍທຸກວັນທີ ${Number(e.payDay)} ຂອງເດືອນ${e.active === false ? " · ພັກວຽກ" : ""}</small>
+        ${isDue ? `<small class="warn-line">⚠ ຮອດກຳນົດຈ່າຍແລ້ວ — ຈ່າຍແລ້ວເງິນຈະເຫຼືອ ${money(cashBalance() - Number(e.salary || 0))}</small>` : ""}</div>
+      <div class="ar-money"><strong>${money(e.salary)}</strong><span>ຕໍ່ເດືອນ</span></div>
+      <div class="ar-tools">
+        ${isDue ? `<button class="primary-button small-button" type="button" data-pay-salary="${e.id}">💵 ຈ່າຍ</button>` : ""}
+        <button class="small-button delete" type="button" data-del-emp="${e.id}">ລຶບ</button>
+      </div></div>`;
+  }).join("") : `<p class="muted small-copy" style="padding:14px">ຍັງບໍ່ມີພະນັກງານ</p>`)
+    + (data.employees.length ? `<p class="staff-total">ເງິນເດືອນລວມ <b>${money(data.employees.filter(e => e.active !== false).reduce((s, e) => s + Number(e.salary || 0), 0))}</b> / ເດືອນ${due.length ? ` · ຮອດກຳນົດຈ່າຍ ${due.length} ຄົນ` : ""}</p>` : "");
+
+  // ---- ⑤ ໜີ້ສິນ ----
+  $("#debtList").innerHTML = data.debts.length ? data.debts.map(d => {
+    const left = debtLeft(d);
+    const pct = Number(d.amount) ? Math.round(Number(d.paid || 0) / Number(d.amount) * 100) : 0;
+    return `<div class="asset-row ${left <= 0 ? "paid" : ""}">
+      <div class="ar-main"><b>${escapeHtml(d.name)}</b>
+        <small>ຍອດເຕັມ ${money(d.amount)} · ຈ່າຍແລ້ວ ${money(d.paid)}${d.dueDate ? ` · ກຳນົດ ${escapeHtml(d.dueDate)}` : ""}</small>
+        <div class="dep-bar paid"><i style="width:${pct}%"></i></div></div>
+      <div class="ar-money"><strong>${left > 0 ? money(left) : "ຈ່າຍຄົບແລ້ວ"}</strong><span>${left > 0 ? "ຍັງຄ້າງ" : "✓"}</span></div>
+      <div class="ar-tools">
+        ${left > 0 ? `<button class="small-button" type="button" data-pay-debt="${d.id}">ຈ່າຍ</button>` : ""}
+        <button class="small-button delete" type="button" data-del-debt="${d.id}">ລຶບ</button>
+      </div></div>`;
+  }).join("") : `<p class="muted small-copy" style="padding:14px">ບໍ່ມີໜີ້ສິນ — ດີແລ້ວ</p>`;
+
+  setBadge("#booksBadge", due.length);
+}
+
+// ---- ດຶງອອກເປັນ Excel (.csv) — ບໍ່ໃຊ້ໂປຣແກຣມເສີມ ດຶງຈາກໜ້າເວັບໂດຍກົງ ----
+// ໃສ່ BOM ນຳໜ້າ ເພື່ອໃຫ້ Excel ອ່ານພາສາລາວອອກ ບໍ່ເປັນຕົວຕ່າງດາວ
+function downloadCsv(filename, rows) {
+  const esc = (v) => {
+    const t = v == null ? "" : String(v);
+    return /[",\n;]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  const csv = rows.map(r => r.map(esc).join(",")).join("\r\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  toast(`ດາວໂຫລດ ${filename} ແລ້ວ`);
+}
+
+function exportOrderCsv(order) {
+  const rows = [
+    ["ອໍເດີ", order.id], ["ວັນທີ", new Date(order.createdAt).toLocaleString("en-GB")],
+    ["ລູກຄ້າ", order.customer?.name || ""], ["ເບີໂທ", order.customer?.phone || ""],
+    ["ສະຖານະ", statusLabel(order.status)], [],
+    ["ສິນຄ້າ", "ລຸ້ນ", "ສີ", "ຈຳນວນ", "ຕົ້ນທຶນ/ຊິ້ນ", "ລາຄາຂາຍ/ຊິ້ນ", "ລວມຂາຍ", "ລວມຕົ້ນທຶນ"],
+    ...order.items.map(i => [i.name, i.model || "", i.color || "", i.quantity,
+      Number(i.cost || 0), Number(i.price || 0), Number(i.price || 0) * i.quantity, Number(i.cost || 0) * i.quantity]),
+    [], ["ລວມຂາຍ", orderTotal(order)], ["ລວມຕົ້ນທຶນ", orderCost(order)],
+    ["ກຳໄລ", orderTotal(order) - orderCost(order)]
+  ];
+  downloadCsv(`order-${order.id}.csv`, rows);
+}
+
+// ສະຫຼຸບເດືອນ → Excel
+function exportMonthCsv(ym) {
+  const rows = data.ledger.filter(r => monthOf(r.happenedAt) === ym)
+    .sort((a, b) => String(a.happenedAt).localeCompare(String(b.happenedAt)));
+  const sum = monthSummary(ym);
+  const out = [
+    [`ສະຫຼຸບບັນຊີ ${monthLabel(ym)}`], [data.profile.shopName || "SL-Mobile"], [],
+    ["ຍອດຂາຍ", sum.sales], ["ຕົ້ນທຶນສິນຄ້າ", sum.cost], ["ກຳໄລຂັ້ນຕົ້ນ", sum.gross],
+    ["ລາຍຮັບອື່ນ", sum.otherIncome], ["ລາຍຈ່າຍ", sum.expense], ["ເງິນເດືອນ", sum.salary],
+    ["ກຳໄລສຸດທິ", sum.net], [], ["ເງິນສົດຄົງເຫຼືອ (ຮອດປັດຈຸບັນ)", cashBalance()], [],
+    ["ວັນທີ", "ປະເພດ", "ລາຍລະອຽດ", "ເງິນເຂົ້າ", "ເງິນອອກ"],
+    ...rows.map(r => [r.happenedAt, kindLabel(r.kind), r.description,
+      Number(r.amount) > 0 ? Number(r.amount) : "", Number(r.amount) < 0 ? -Number(r.amount) : ""])
+  ];
+  downloadCsv(`banxi-${ym}.csv`, out);
+}
+
+// ຊັບສິນຄົງທີ່ + ຄ່າເສື່ອມ → Excel
+function exportAssetsCsv() {
+  const out = [["ຊັບສິນຄົງທີ່ ແລະ ຄ່າເສື່ອມລາຄາ"], [data.profile.shopName || "SL-Mobile"],
+    [`ວັນທີ ${today()}`], [],
+    ["ຊື່ຊັບສິນ", "ໝວດ", "ວັນຊື້", "ລາຄາຊື້", "ອາຍຸ (ປີ)", "ມູນຄ່າຊາກ", "ຄ່າເສື່ອມ/ປີ", "ຄ່າເສື່ອມສະສົມ", "ມູນຄ່າຄົງເຫຼືອ"]];
+  data.assets.forEach(a => {
+    const d = depreciation(a);
+    out.push([a.name, a.category, a.buyDate, Number(a.cost || 0), Number(a.lifeYears || 0),
+      Number(a.salvage || 0), d.perYear, d.accumulated, d.bookValue]);
+  });
+  out.push([], ["ລວມລາຄາຊື້", data.assets.reduce((s, a) => s + Number(a.cost || 0), 0)]);
+  out.push(["ລວມມູນຄ່າຄົງເຫຼືອ", assetBookTotal()]);
+  out.push([], ["ຕາຕະລາງຄ່າເສື່ອມແຕ່ລະປີ"], ["ຊື່ຊັບສິນ", "ປີ", "ຄ່າເສື່ອມ", "ມູນຄ່າຄົງເຫຼືອ"]);
+  data.assets.forEach(a => depreciationRows(a).forEach(r => out.push([a.name, r.year, r.amount, r.book])));
+  downloadCsv(`sapsin-${today()}.csv`, out);
+}
+
+// ---- ພິມ / ບັນທຶກເປັນ PDF — ໃຊ້ໜ້າພິມຂອງ browser ບໍ່ຕ້ອງໂຫລດໂປຣແກຣມ ----
+function printMonthReport(ym) {
+  const sum = monthSummary(ym);
+  const rows = data.ledger.filter(r => monthOf(r.happenedAt) === ym)
+    .sort((a, b) => String(a.happenedAt).localeCompare(String(b.happenedAt)));
+  const line = (label, value, cls = "") => `<tr class="${cls}"><td>${escapeHtml(label)}</td><td class="num">${money(value)}</td></tr>`;
+  const box = document.createElement("div");
+  box.id = "printArea";
+  box.innerHTML = `
+    <h1>${escapeHtml(data.profile.shopName || "SL-Mobile")}</h1>
+    <h2>ສະຫຼຸບບັນຊີ ${escapeHtml(monthLabel(ym))}</h2>
+    <p class="meta">ພິມວັນທີ ${today()} · ໂທ ${escapeHtml(data.profile.phone || "")}</p>
+    <table class="sum">
+      ${line("ຍອດຂາຍ", sum.sales)}
+      ${line("ຫັກ ຕົ້ນທຶນສິນຄ້າ", -sum.cost)}
+      ${line("ກຳໄລຂັ້ນຕົ້ນ", sum.gross, "strong")}
+      ${line("ບວກ ລາຍຮັບອື່ນ", sum.otherIncome)}
+      ${line("ຫັກ ລາຍຈ່າຍ", -sum.expense)}
+      ${line("ຫັກ ເງິນເດືອນ", -sum.salary)}
+      ${line("ກຳໄລສຸດທິ", sum.net, "total")}
+    </table>
+    <h3>ຖານະການເງິນ ຮອດວັນທີ ${today()}</h3>
+    <table class="sum">
+      ${line("ເງິນສົດ / ທຶນໝູນວຽນ", cashBalance())}
+      ${line("ມູນຄ່າສະຕັອກ (ຕົ້ນທຶນ)", stockValue())}
+      ${line("ຊັບສິນຄົງທີ່ (ຫຼັງຫັກຄ່າເສື່ອມ)", assetBookTotal())}
+      ${line("ຫັກ ໜີ້ສິນ", -totalDebt())}
+      ${line("ມູນຄ່າກິດຈະການສຸດທິ", cashBalance() + stockValue() + assetBookTotal() - totalDebt(), "total")}
+    </table>
+    <h3>ລາຍການທັງໝົດໃນເດືອນ (${rows.length} ລາຍການ)</h3>
+    <table class="rows">
+      <thead><tr><th>ວັນທີ</th><th>ປະເພດ</th><th>ລາຍລະອຽດ</th><th class="num">ເຂົ້າ</th><th class="num">ອອກ</th></tr></thead>
+      <tbody>${rows.map(r => `<tr><td>${escapeHtml(r.happenedAt)}</td><td>${escapeHtml(kindLabel(r.kind))}</td>
+        <td>${escapeHtml(r.description)}</td>
+        <td class="num">${Number(r.amount) > 0 ? money(r.amount) : ""}</td>
+        <td class="num">${Number(r.amount) < 0 ? money(-r.amount) : ""}</td></tr>`).join("") ||
+        `<tr><td colspan="5">ບໍ່ມີລາຍການ</td></tr>`}</tbody>
+    </table>
+    <p class="sign">ຜູ້ຈັດການ ______________________</p>`;
+  document.querySelectorAll("#printArea").forEach(n => n.remove());
+  document.body.appendChild(box);
+  window.print();
+  setTimeout(() => box.remove(), 800);
+}
+
+// ຮັບອໍເດີ = ຫັກຕົ້ນທຶນອອກຈາກເງິນທຶນ (ລົງ 1 ເທື່ອເທົ່ານັ້ນ)
+async function bookOrderCost(order) {
+  if (orderLedgerHas(order.id, "orderCost")) return;
+  const cost = orderCost(order);
+  if (cost <= 0) return;
+  await addLedger({ kind: "orderCost", amount: -cost, orderId: order.id,
+    description: `ຕົ້ນທຶນອໍເດີ ${order.id} · ${order.customer?.name || ""}`.trim() });
+}
+// ອໍເດີສຳເລັດ = ຮັບເງິນຂາຍເຂົ້າ (ລົງ 1 ເທື່ອເທົ່ານັ້ນ)
+async function bookOrderSale(order) {
+  if (orderLedgerHas(order.id, "orderSale")) return;
+  const total = orderTotal(order);
+  if (total <= 0) return;
+  await addLedger({ kind: "orderSale", amount: total, orderId: order.id,
+    description: `ຂາຍສຳເລັດ ${order.id} · ${order.customer?.name || ""}`.trim() });
+}
+// ຖອຍສະຖານະອອກຈາກ "ສຳເລັດ" = ຖອນເງິນຂາຍອອກ ໃຫ້ຍອດຖືກຕ້ອງສະເໝີ
+async function unbookOrderSale(orderId) {
+  if (!orderLedgerHas(orderId, "orderSale")) return;
+  await removeOrderLedger(orderId, "orderSale");
+}
+
 async function acceptOrder(orderId) {
   const order = orderById(orderId);
   if (!order) return;
@@ -693,11 +1217,13 @@ async function acceptOrder(orderId) {
       await deductStockFor(order);
       const { error } = await supabase.from("orders").update({ status: "preparing", stockDeducted: true, acceptedAt: now }).eq("id", order.id);
       if (error) throw error;
+      await bookOrderCost(order);
       await Promise.all([refreshOrders(), refreshProducts()]);
       toast("ຮັບອໍເດີແລ້ວ · ຕັດສະຕັອກ ແລະ ຍ້າຍໄປ “ຕ້ອງຈັດສົ່ງ”");
     } else {
       const { error } = await supabase.from("orders").update({ status: "needOrder", acceptedAt: now }).eq("id", order.id);
       if (error) throw error;
+      await bookOrderCost(order);
       await refreshOrders();
       toast(`ຮັບອໍເດີແລ້ວ · ມີ ${short.length} ລາຍການຕ້ອງສັ່ງເພີ່ມ`);
     }
@@ -766,7 +1292,7 @@ function showManager() {
   closeLayers(); $(".app-shell").classList.add("hidden"); $("#managerView").classList.remove("hidden"); renderManager(); window.scrollTo({ top: 0, behavior: "instant" });
 }
 function showShop() { $("#managerView").classList.add("hidden"); $(".app-shell").classList.remove("hidden"); renderShopProfile(); renderCustomerShop(); renderCart(); }
-function renderManager() { renderShopProfile(); renderDashboard(); renderOrders(); renderRestock(); renderShipping(); renderSlips(); renderManagerProducts(); renderCategoriesManager(); renderPaymentForm(); renderFinancials(); renderShopProfileForm(); renderProductCategories(); }
+function renderManager() { renderShopProfile(); renderDashboard(); renderOrders(); renderRestock(); renderShipping(); renderSlips(); renderManagerProducts(); renderCategoriesManager(); renderPaymentForm(); renderFinancials(); renderShopProfileForm(); renderProductCategories(); renderBooks(); }
 function renderDashboard() {
   const activeOrders = data.orders.filter(order => !["cancelled", "complete"].includes(order.status));
   const pendingValue = activeOrders.reduce((sum, order) => sum + orderTotal(order), 0);
@@ -1171,7 +1697,7 @@ function renderShopProfileForm() {
   form.shopName.value = profile.shopName || ""; form.tagline.value = profile.tagline || ""; form.ownerName.value = profile.ownerName || ""; form.phone.value = profile.phone || "";
   $("#profilePreview").innerHTML = profile.logo ? `<img src="${profile.logo}" alt="${escapeHtml(profile.shopName)}">` : `<span>${escapeHtml((profile.shopName || "P").trim().charAt(0).toUpperCase() || "P")}</span>`;
 }
-function switchManagerTab(tab) { $$(".manager-tab").forEach(button => button.classList.toggle("active", button.dataset.managerTab === tab)); $$(".manager-pane").forEach(pane => pane.classList.toggle("hidden", pane.dataset.pane !== tab)); if (tab === "dashboard") renderDashboard(); if (tab === "orders") renderOrders(); if (tab === "restock") renderRestock(); if (tab === "shipping") renderShipping(); if (tab === "slips") renderSlips(); if (tab === "products") { renderProductCategories(); renderManagerProducts(); } if (tab === "categories") renderCategoriesManager(); if (tab === "payment") renderPaymentForm(); if (tab === "financial") renderFinancials(); if (tab === "profile") renderShopProfileForm(); }
+function switchManagerTab(tab) { $$(".manager-tab").forEach(button => button.classList.toggle("active", button.dataset.managerTab === tab)); $$(".manager-pane").forEach(pane => pane.classList.toggle("hidden", pane.dataset.pane !== tab)); if (tab === "dashboard") renderDashboard(); if (tab === "orders") renderOrders(); if (tab === "restock") renderRestock(); if (tab === "shipping") renderShipping(); if (tab === "slips") renderSlips(); if (tab === "products") { renderProductCategories(); renderManagerProducts(); } if (tab === "categories") renderCategoriesManager(); if (tab === "payment") renderPaymentForm(); if (tab === "financial") renderFinancials(); if (tab === "books") { refreshBooksAll(); renderBooks(); } if (tab === "profile") renderShopProfileForm(); }
 
 function setPriceMode() {
   const mode = $("#priceMode").value;
@@ -1498,8 +2024,14 @@ function refreshBadges() {
   setBadge("#restockBadge", restockAggregate(["needOrder"]).length);
   setBadge("#shippingBadge", count("preparing"));
   setBadge("#slipBadge", data.orders.filter(o => o.receipt && o.status === "new").length);
+  setBadge("#booksBadge", salaryDueList().length);   // ຮອດກຳນົດຈ່າຍເງິນເດືອນ
 }
 async function refreshExpenses() { data.expenses = await fetchTable("expenses"); renderFinancials(); }
+async function refreshLedger()    { data.ledger    = await fetchTable("ledger");    renderBooks(); renderDashboard(); }
+async function refreshAssets()    { data.assets    = await fetchTable("assets");    renderBooks(); }
+async function refreshEmployees() { data.employees = await fetchTable("employees"); renderBooks(); refreshBadges(); }
+async function refreshDebts()     { data.debts     = await fetchTable("debts");     renderBooks(); }
+async function refreshBooksAll()  { await Promise.all([refreshLedger(), refreshAssets(), refreshEmployees(), refreshDebts()]); }
 function renderPriceRule() {
   const rate = $("#ruleYuanRate"); if (!rate) return;
   rate.value = priceRule.yuanRate || "";
@@ -1546,7 +2078,7 @@ async function refreshSettings() {
 }
 function renderAll() {
   renderCustomerShop(); renderCart();
-  renderDashboard(); renderOrders(); renderRestock(); renderShipping(); renderSlips(); renderManagerProducts(); renderCategoriesManager(); renderProductCategories(); renderFinancials();
+  renderDashboard(); renderOrders(); renderRestock(); renderShipping(); renderSlips(); renderManagerProducts(); renderCategoriesManager(); renderProductCategories(); renderFinancials(); renderBooks();
 }
 // ກວດເບິ່ງວ່າຕິດຕໍ່ຖານຂໍ້ມູນໄດ້ບໍ ຕອນເປີດເວັບ — ຖ້າບໍ່ໄດ້ ໃຫ້ບອກຜູ້ໃຊ້ທັນທີ
 async function checkConnection() {
@@ -1621,6 +2153,7 @@ document.addEventListener("DOMContentLoaded", () => {
   console.log("SL-Mobile app version", APP_VERSION);
   const vBox = $("#appVersion"); if (vBox) vBox.textContent = `ລຸ້ນ ${APP_VERSION}`;
   renderShopProfile(); renderCustomerShop(); renderCart();
+  wireBooks();
 
   // ---- ໂຫລດຂໍ້ມູນຄັ້ງທຳອິດ ແລ້ວເປີດ realtime (ອັບເດດອັດຕະໂນມັດທຸກເຄື່ອງ) ----
   refreshCategories(); refreshProducts(); refreshOrders(); refreshExpenses(); refreshSettings();
@@ -1630,6 +2163,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // ---- ສະຖານະການ login ----
   supabase.auth.onAuthStateChange((event, session) => {
     managerUser = session?.user || null;
+    if (managerUser) refreshBooksAll();   // ຂໍ້ມູນບັນຊີ ໂຫລດສະເພາະຜູ້ຈັດການທີ່ login ແລ້ວ
     if (!authReadyOnce) { authReadyOnce = true; if (managerUser) showManager(); }
   });
 
@@ -1711,6 +2245,16 @@ document.addEventListener("DOMContentLoaded", () => {
     supabase.from("orders").update({ status: select.value }).eq("id", select.dataset.orderStatus)
       .then(async ({ error }) => {
         if (error) { console.error(error); select.disabled = false; return toast(`ອັບເດດບໍ່ສຳເລັດ: ${error.message}`); }
+        const id = select.dataset.orderStatus;
+        const order = orderById(id);
+        // ສຳເລັດ = ຮັບເງິນເຂົ້າ · ຖອຍອອກຈາກສຳເລັດ = ຖອນເງິນຄືນ
+        if (order) {
+          if (select.value === "complete") await bookOrderSale(order);
+          else await unbookOrderSale(id);
+          // ຍົກເລີກ = ຄືນຕົ້ນທຶນທີ່ຫັກໄປແລ້ວ
+          if (select.value === "cancelled") await removeOrderLedger(id, "orderCost");
+          else if (["preparing","needOrder","ordering","shipping","complete"].includes(select.value)) await bookOrderCost(order);
+        }
         await refreshOrders();
         toast(`ປ່ຽນເປັນ “${statusLabel(select.value)}” ແລ້ວ`);
       });
@@ -1985,8 +2529,22 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("click", async event => {
     const button = event.target.closest("[data-delete-order]"); if (!button) return;
     const order = orderById(button.dataset.deleteOrder); if (!order) return;
-    const warn = order.stockDeducted ? "\n\n⚠ ອໍເດີນີ້ຕັດສະຕັອກໄປແລ້ວ — ລະບົບຈະຄືນສະຕັອກໃຫ້ອັດຕະໂນມັດ." : "";
-    if (!confirm(`ລຶບອໍເດີ ${order.id} ຖິ້ມແທ້ບໍ?\n\nລູກຄ້າ: ${order.customer.name}\nມູນຄ່າ: ${money(orderTotal(order))}${warn}\n\nລຶບແລ້ວກູ້ຄືນບໍ່ໄດ້.`)) return;
+    const warn = order.stockDeducted ? "\n⚠ ອໍເດີນີ້ຕັດສະຕັອກໄປແລ້ວ — ລະບົບຈະຄືນສະຕັອກໃຫ້ອັດຕະໂນມັດ." : "";
+    const cost = orderCost(order), total = orderTotal(order);
+    const booked = orderLedgerHas(order.id, "orderCost"), sold = orderLedgerHas(order.id, "orderSale");
+    const moneyBack = [
+      booked ? `• ຕົ້ນທຶນ ${money(cost)} ຈະຖືກຄືນເຂົ້າເງິນທຶນ` : "",
+      sold ? `• ເງິນຂາຍ ${money(total)} ຈະຖືກຫັກອອກຈາກເງິນທຶນ` : ""
+    ].filter(Boolean).join("\n");
+
+    // ຢືນຢັນເທື່ອທີ 1 — ພ້ອມສະເໜີໃຫ້ເຊບໄຟລ໌ໄວ້ກ່ອນ
+    if (!confirm(`⚠ ຢືນຢັນເທື່ອທີ 1/2\n\nລຶບອໍເດີ ${order.id}?\nລູກຄ້າ: ${order.customer.name}\nມູນຄ່າ: ${money(total)}${warn}\n${moneyBack ? "\nຜົນຕໍ່ບັນຊີ:\n" + moneyBack + "\n" : ""}\nກົດ OK ເພື່ອໄປຕໍ່`)) return;
+    if (confirm("ຢາກເຊບອໍເດີນີ້ເປັນໄຟລ໌ Excel ໄວ້ກ່ອນລຶບບໍ?\n\nOK = ດາວໂຫລດເກັບໄວ້\nCancel = ບໍ່ຕ້ອງ ລຶບເລີຍ")) {
+      exportOrderCsv(order);
+      await new Promise(r => setTimeout(r, 900));
+    }
+    // ຢືນຢັນເທື່ອທີ 2 — ເທື່ອສຸດທ້າຍ
+    if (!confirm(`🗑 ຢືນຢັນເທື່ອສຸດທ້າຍ 2/2\n\nລຶບອໍເດີ ${order.id} ຖິ້ມແທ້ບໍ?\nລຶບແລ້ວ ກູ້ຄືນບໍ່ໄດ້ອີກ.`)) return;
     button.disabled = true;
     try {
       if (order.stockDeducted) {   // ຄືນສະຕັອກກ່ອນລຶບ
@@ -1998,8 +2556,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       const { error } = await supabase.from("orders").delete().eq("id", order.id);
       if (error) throw error;
-      await Promise.all([refreshOrders(), refreshProducts()]);
-      toast(order.stockDeducted ? "ລຶບອໍເດີ ແລະ ຄືນສະຕັອກແລ້ວ" : "ລຶບອໍເດີແລ້ວ");
+      await Promise.all([refreshOrders(), refreshProducts(), refreshLedger()]);
+      toast(order.stockDeducted ? "ລຶບອໍເດີ · ຄືນສະຕັອກ ແລະ ຄືນເງິນທຶນແລ້ວ" : "ລຶບອໍເດີ ແລະ ປັບບັນຊີແລ້ວ");
     } catch (err) { console.error(err); toast(`ລຶບບໍ່ສຳເລັດ: ${err.message || err}`); }
     finally { button.disabled = false; }
   });
