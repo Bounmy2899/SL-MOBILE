@@ -200,7 +200,7 @@ function orderTotal(order) { return order.items.reduce((sum, item) => sum + item
 // Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
 // ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
 // ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
-const APP_VERSION = "22 · ລະບົບບັນຊີ";
+const APP_VERSION = "24 · ເລດຢວນ + ຮູບໝວດ + ແກ້ສະຕັອກໄວ";
 let uploadSeq = 0;
 function safeFileName(file) {
   const raw = String(file?.name || "");
@@ -1470,6 +1470,15 @@ function renderManagerProducts() {
           <button type="button" data-stock-plus="${product.id}" aria-label="ເພີ່ມສະຕັອກ">+</button>
           <span class="stock-unit">ຊິ້ນ</span>
         </div>
+        <div class="mode-control">
+          <label>ຮູບແບບຂາຍ
+            <select data-sale-mode="${product.id}">
+              <option value="inStock" ${!isOnDemand(product) ? "selected" : ""}>ພ້ອມສົ່ງ (ຕັດສະຕັອກ)</option>
+              <option value="onDemand" ${isOnDemand(product) ? "selected" : ""}>ສັ່ງຕາມອໍເດີ (ສະຕັອກ 0 ກໍຂາຍໄດ້)</option>
+            </select>
+          </label>
+          <button type="button" class="small-button" data-sold-out="${product.id}">ໝົດແລ້ວ (ສະຕັອກ 0)</button>
+        </div>
       </div>
       <div class="product-finance"><strong>ຂາຍ ${money(product.price)}</strong>
         <span>ຕົ້ນທຶນ ${money(product.cost)} · ກຳໄລ ${money(product.price - product.cost)}</span>
@@ -1667,15 +1676,18 @@ function renderCategoriesManager() {
     const kidCount = childrenOf(c.id).length;
     const items = productCountIn(c.id);
     const isTop = c.parentId == null;
+    // ທຸກຊັ້ນໃສ່ຮູບໄດ້ ບໍ່ແມ່ນສະເພາະໝວດໃຫຍ່ — ຮູບຈະໄປໂຜ່ໜ້າຮ້ານແທນໄອຄອນ
     return `<div class="cat-row">
       <button type="button" class="cat-row-main" data-catmgr-open="${c.id}">
-        ${isTop ? `<span class="node-art">${c.image ? `<img src="${escapeHtml(c.image)}" alt="">` : escapeHtml(c.icon || "📦")}</span>` : ""}
+        <span class="node-art${c.image ? " has-img" : ""}">${c.image ? `<img src="${escapeHtml(c.image)}" alt="">` : escapeHtml(c.icon || "📦")}</span>
         <span class="pf-name">${escapeHtml(c.name)}</span>
         <span class="pf-meta">${kidCount ? `${kidCount} ລາຍການຍ່ອຍ · ` : ""}${items} ສິນຄ້າ</span>
         <span class="pf-go">›</span>
       </button>
       <span class="node-tools">
-        ${isTop ? `<button type="button" data-cat-image="${c.id}" title="ໃສ່ຮູບໝວດ">🖼</button>` : ""}
+        <button type="button" class="img-btn" data-cat-image="${c.id}" title="ໃສ່ຮູບ / ປ່ຽນຮູບ">${c.image ? "🖼 ປ່ຽນຮູບ" : "🖼 ໃສ່ຮູບ"}</button>
+        ${c.image ? `<button type="button" data-cat-unimage="${c.id}" title="ເອົາຮູບອອກ ກັບໄປໃຊ້ໄອຄອນ">🚫</button>` : ""}
+        ${isTop ? `<button type="button" data-cat-icon="${c.id}" title="ປ່ຽນໄອຄອນ">😀</button>` : ""}
         <button type="button" data-cat-rename="${c.id}" title="ແກ້ໄຂຊື່">✎</button>
         <button type="button" class="danger" data-cat-delete="${c.id}" title="ລຶບ">×</button>
       </span>
@@ -2059,9 +2071,68 @@ async function savePriceRule() {
     profitMode: $("#ruleProfitMode").value === "fixed" ? "fixed" : "percent",
     profitValue: Number($("#ruleProfitValue").value || 0)
   };
+  const old = { ...priceRule };
   const { error } = await supabase.from("settings").update({ pricing: next }).eq("id", "store");
-  if (error) { console.error(error); toast("ບັນທຶກສູດບໍ່ໄດ້: " + (error.message || "")); return false; }
-  priceRule = next; renderPriceRule(); toast("ບັນທຶກສູດລາຄາແລ້ວ"); return true;
+  if (error) { console.error(error); toast("ບັນທຶກສູດບໍ່ໄດ້: " + (error.message || "")); showRuleSaved("ບັນທຶກບໍ່ໄດ້", false); return false; }
+  priceRule = next; renderPriceRule();
+  showRuleSaved("ບັນທຶກສູດລາຄາແລ້ວ", true);
+  toast("✓ ບັນທຶກສູດລາຄາແລ້ວ");
+  // ເລດ ຫຼື ຄ່າຂົນສົ່ງ ປ່ຽນ → ຖາມວ່າຈະໄລ່ລາຄາສິນຄ້າທີ່ຕັ້ງເປັນຢວນໃໝ່ໝົດບໍ
+  if (old.yuanRate !== next.yuanRate || old.profitMode !== next.profitMode || old.profitValue !== next.profitValue) {
+    await repriceYuanProducts(old, next);
+  }
+  return true;
+}
+
+// ປ້າຍ "ບັນທຶກແລ້ວ" ໃຫ້ເຫັນຊັດຢູ່ຂ້າງປຸ່ມ
+function showRuleSaved(text, good = true) {
+  const box = $("#ruleSaved"); if (!box) return;
+  box.textContent = (good ? "✓ " : "✕ ") + text;
+  box.className = `save-flag ${good ? "ok" : "bad"}`;
+  box.classList.remove("hidden");
+  clearTimeout(showRuleSaved._t);
+  showRuleSaved._t = setTimeout(() => box.classList.add("hidden"), 4000);
+}
+
+// ຄິດລາຄາຂາຍຈາກຕົ້ນທຶນ ຕາມສູດກຳໄລຂອງຮ້ານ
+function priceFromCost(cost, rule = priceRule) {
+  const c = Number(cost || 0);
+  const v = Number(rule.profitValue || 0);
+  const raw = (rule.profitMode === "fixed") ? c + v : c * (1 + v / 100);
+  return Math.max(0, Math.round(raw / 1000) * 1000);
+}
+
+// ---- ປ່ຽນເລດຢວນ → ໄລ່ລາຄາສິນຄ້າທີ່ຕັ້ງເປັນຢວນໃໝ່ທັງໝົດ ----
+async function repriceYuanProducts(oldRule, newRule) {
+  const list = data.products.filter(p => Number(p.yuanPrice || 0) > 0);
+  if (!list.length) return;
+  const plan = list.map(p => {
+    const yuan = Number(p.yuanPrice || 0);
+    const ship = Number(p.shipCost ?? newRule.shipCost ?? 0);
+    const cost = Math.round((yuan * Number(newRule.yuanRate || 0) + ship) / 1000) * 1000;
+    return { p, cost, price: priceFromCost(cost, newRule) };
+  }).filter(x => x.cost !== Number(x.p.cost) || x.price !== Number(x.p.price));
+  if (!plan.length) { toast("ລາຄາສິນຄ້າຢວນ ຖືກຕ້ອງຢູ່ແລ້ວ ບໍ່ຕ້ອງແກ້"); return; }
+
+  const sample = plan.slice(0, 5).map(x =>
+    `• ${x.p.name}\n   ${money(x.p.price)} → ${money(x.price)}  (${x.p.yuanPrice} ¥)`).join("\n");
+  const rateLine = oldRule.yuanRate !== newRule.yuanRate
+    ? `ເລດ 1 ¥ : ${money(oldRule.yuanRate)} → ${money(newRule.yuanRate)}\n\n` : "";
+  if (!confirm(`${rateLine}ມີສິນຄ້າທີ່ຕັ້ງລາຄາເປັນຢວນ ${plan.length} ລາຍການ\nຢາກໃຫ້ໄລ່ລາຄາໃໝ່ໃຫ້ໝົດເລີຍບໍ?\n\n${sample}${plan.length > 5 ? `\n\n…ແລະ ອີກ ${plan.length - 5} ລາຍການ` : ""}\n\nOK = ໄລ່ໃໝ່ໃຫ້ໝົດ\nCancel = ປ່ຽນແຕ່ສູດ ລາຄາເກົ່າຄືເດີມ`)) {
+    toast("ບັນທຶກສູດແລ້ວ · ລາຄາສິນຄ້າຍັງເປັນຄ່າເກົ່າ");
+    return;
+  }
+  toast(`ກຳລັງໄລ່ລາຄາໃໝ່ ${plan.length} ລາຍການ...`);
+  let done = 0, failed = 0;
+  for (const x of plan) {
+    const { error } = await supabase.from("products")
+      .update({ cost: x.cost, price: x.price, shipCost: Number(x.p.shipCost ?? newRule.shipCost ?? 0) })
+      .eq("id", x.p.id);
+    if (error) { console.error(error); failed++; } else done++;
+  }
+  await refreshProducts();
+  showRuleSaved(`ໄລ່ລາຄາໃໝ່ ${done} ລາຍການແລ້ວ`, !failed);
+  toast(failed ? `ໄລ່ໃໝ່ ${done} ລາຍການ · ຜິດພາດ ${failed}` : `✓ ໄລ່ລາຄາໃໝ່ຄົບ ${done} ລາຍການແລ້ວ`);
 }
 
 async function refreshSettings() {
@@ -2458,12 +2529,34 @@ document.addEventListener("DOMContentLoaded", () => {
     const minus = event.target.closest("[data-stock-minus]"); const plus = event.target.closest("[data-stock-plus]");
     if (minus) return adjustStock(minus.dataset.stockMinus, -1);
     if (plus) return adjustStock(plus.dataset.stockPlus, 1);
+    // ໝົດແລ້ວ = ຕັ້ງສະຕັອກເປັນ 0 ໃນເທື່ອດຽວ
+    const soldOut = event.target.closest("[data-sold-out]");
+    if (soldOut) {
+      const product = productById(soldOut.dataset.soldOut); if (!product) return;
+      const current = Number(product.stock || 0);
+      if (current === 0) return toast("ສະຕັອກເປັນ 0 ຢູ່ແລ້ວ");
+      if (!confirm(`ຕັ້ງ “${product.name}” ເປັນໝົດແລ້ວບໍ?\n\nສະຕັອກ ${current} → 0 ຊິ້ນ`)) return;
+      return adjustStock(product.id, -current);
+    }
     const edit = event.target.closest("[data-edit-product]"); const remove = event.target.closest("[data-delete-product]");
     if (edit) openProductForm(data.products.find(product => String(product.id) === edit.dataset.editProduct));
     if (remove) { const product = data.products.find(item => String(item.id) === remove.dataset.deleteProduct); if (product && confirm(`ລຶບ “${product.name}” ແທ້ບໍ?`)) { supabase.from("products").delete().eq("id", product.id).then(() => { cart = cart.filter(item => String(item.productId) !== String(product.id)); saveCart(); renderCart(); }); } }
   });
   // ພິມຈຳນວນສະຕັອກໂດຍກົງ ແລ້ວກົດ Enter ຫຼື ຄລິກອອກ
-  $("#managerProducts").addEventListener("change", event => {
+  $("#managerProducts").addEventListener("change", async event => {
+    // ປ່ຽນຮູບແບບການຂາຍ ໄດ້ຈາກລາຍການເລີຍ ບໍ່ຕ້ອງເປີດຟອມ
+    const mode = event.target.closest("[data-sale-mode]");
+    if (mode) {
+      const product = productById(mode.dataset.saleMode); if (!product) return;
+      const before = product.saleMode;
+      mode.disabled = true;
+      const { error } = await supabase.from("products").update({ saleMode: mode.value }).eq("id", product.id);
+      mode.disabled = false;
+      if (error) { mode.value = before; return toast("ປ່ຽນບໍ່ໄດ້: " + error.message); }
+      await refreshProducts();
+      toast(mode.value === "onDemand" ? "ປ່ຽນເປັນ “ສັ່ງຕາມອໍເດີ” ແລ້ວ · ສະຕັອກ 0 ກໍຂາຍໄດ້" : "ປ່ຽນເປັນ “ພ້ອມສົ່ງ” ແລ້ວ · ຈະຕັດສະຕັອກຕອນຂາຍ");
+      return;
+    }
     const input = event.target.closest("[data-stock-input]");
     if (!input) return;
     const product = productById(input.dataset.stockInput);
@@ -2763,6 +2856,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (setImg) { pendingCategoryImage = setImg.dataset.catImage; return $("#categoryImageInput").click(); }
 
+    // ເອົາຮູບອອກ → ກັບໄປໃຊ້ໄອຄອນຕົວອັກສອນ
+    const unImg = event.target.closest("[data-cat-unimage]");
+    if (unImg) {
+      const cat = catById(unImg.dataset.catUnimage); if (!cat) return;
+      if (!confirm(`ເອົາຮູບຂອງ “${cat.name}” ອອກບໍ?\n(ຈະກັບໄປສະແດງເປັນໄອຄອນຄືເກົ່າ)`)) return;
+      const { error } = await supabase.from("categories").update({ image: "" }).eq("id", cat.id);
+      if (error) return toast("ເອົາອອກບໍ່ໄດ້: " + error.message);
+      await refreshCategories(); toast("ເອົາຮູບອອກແລ້ວ");
+      return;
+    }
+    // ປ່ຽນໄອຄອນ (ໃຊ້ຕອນຍັງບໍ່ມີຮູບ)
+    const setIcon = event.target.closest("[data-cat-icon]");
+    if (setIcon) {
+      const cat = catById(setIcon.dataset.catIcon); if (!cat) return;
+      const icon = prompt(`ໄອຄອນຂອງ “${cat.name}”\nວາງ emoji ໄດ້ເລີຍ ເຊັ່ນ 🛡️ 📱 🔋 🔌 🎧`, cat.icon || "📦");
+      if (icon === null) return;
+      const { error } = await supabase.from("categories").update({ icon: icon.trim().slice(0, 4) }).eq("id", cat.id);
+      if (error) return toast("ປ່ຽນບໍ່ໄດ້: " + error.message);
+      await refreshCategories(); toast("ປ່ຽນໄອຄອນແລ້ວ");
+      return;
+    }
+
     if (rename) {
       const cat = catById(rename.dataset.catRename); if (!cat) return;
       const name = prompt("ແກ້ໄຂຊື່:", cat.name);
@@ -2830,7 +2945,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const url = await uploadImage(file, "products");
       const { error } = await supabase.from("categories").update({ image: url }).eq("id", pendingCategoryImage);
       if (error) throw error;
-      await refreshCategories(); renderCategoriesManager(); toast("ໃສ່ຮູບໝວດແລ້ວ");
+      await refreshCategories(); renderCategoriesManager();
+      toast("✓ ໃສ່ຮູບແລ້ວ · ຮູບຈະໂຜ່ໜ້າຮ້ານທັນທີ");
     } catch (err) { console.error(err); toast(`ອັບໂຫລດບໍ່ສຳເລັດ: ${err.message || err}`); }
     finally { event.target.value = ""; pendingCategoryImage = null; }
   });

@@ -834,3 +834,34 @@
   #printArea .sign{margin-top:34px;font-size:12px}
   @page{margin:14mm}
 }
+
+
+/* --- ປ້າຍ "ບັນທຶກແລ້ວ" ຂ້າງປຸ່ມ --- */
+.save-flag{display:inline-flex;align-items:center;padding:7px 13px;border-radius:999px;
+  font-size:13px;font-weight:700;animation:flagIn .2s ease-out}
+.save-flag.ok{background:var(--green-pale);color:var(--green-dark);border:1px solid var(--green)}
+.save-flag.bad{background:#fdeaea;color:var(--red);border:1px solid var(--red)}
+@keyframes flagIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
+/* --- ປ່ຽນຮູບແບບການຂາຍ ຈາກລາຍການສິນຄ້າໄດ້ເລີຍ --- */
+.mode-control{display:flex;align-items:end;gap:9px;margin-top:9px;flex-wrap:wrap}
+.mode-control label{display:grid;gap:5px;font-size:11.5px;font-weight:700;color:#4d5d55}
+.mode-control select{border:1px solid #ccd8d0;border-radius:9px;padding:8px 10px;font-size:13px;
+  background:#fff;color:var(--ink);min-height:40px;max-width:250px}
+.mode-control .small-button{min-height:40px}
+@media (max-width:670px){
+  .mode-control{gap:7px}
+  .mode-control label{flex:1;min-width:0}
+  .mode-control select{max-width:none;width:100%;min-height:44px}
+  .mode-control .small-button{min-height:44px}
+}
+
+
+/* --- ຮູບໝວດສິນຄ້າ ໃນໜ້າຈັດການ --- */
+.node-art.has-img{padding:0;overflow:hidden;background:#fff;border:1px solid var(--line)}
+.node-art.has-img img{width:100%;height:100%;object-fit:cover;display:block}
+.node-tools .img-btn{width:auto;padding:0 11px;font-size:12px;font-weight:700;white-space:nowrap}
+@media (max-width:670px){
+  .node-tools{flex-wrap:wrap;justify-content:flex-end}
+  .node-tools .img-btn{font-size:11.5px;padding:0 9px}
+}

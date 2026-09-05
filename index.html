@@ -43,7 +43,7 @@
   <link rel="preload" as="font" type="font/woff2" href="fonts/phetsarath-lao-400-normal.woff2" crossorigin />
   <link rel="preload" as="image" href="banner-640.webp" imagesrcset="banner-640.webp 640w, banner-1000.webp 1000w, banner-1290.webp 1290w" imagesizes="(max-width:670px) 100vw, (max-width:1200px) 92vw, 1170px" fetchpriority="high" />
   <link rel="preconnect" href="https://fsizqnygcklqlxuopbcc.supabase.co" crossorigin />
-  <link rel="stylesheet" href="style.css?v=22" />
+  <link rel="stylesheet" href="style.css?v=24" />
 </head>
 <body>
   <div class="app-shell">
@@ -281,6 +281,7 @@
             </div>
             <div class="paste-actions">
               <button class="primary-button" type="button" id="savePriceRule">ບັນທຶກສູດ</button>
+              <span class="save-flag hidden" id="ruleSaved"></span>
               <span class="muted small-copy" id="ruleExample"></span>
             </div>
           </details>
@@ -353,7 +354,7 @@
         </section>
 
         <section class="manager-pane hidden" data-pane="categories">
-          <div class="pane-heading"><div><h2>ໝວດສິນຄ້າ</h2><p>ສ້າງໝວດໃຫ້ລູກຄ້າເລືອກເບິ່ງງ່າຍ</p></div></div>
+          <div class="pane-heading"><div><h2>ໝວດສິນຄ້າ</h2><p>ສ້າງໝວດໃຫ້ລູກຄ້າເລືອກເບິ່ງງ່າຍ · ກົດ 🖼 ໃສ່ຮູບ ເພື່ອໃຫ້ໜ້າຮ້ານສະແດງຮູບຈິງແທນໄອຄອນ</p></div></div>
           <div class="cat-manager">
             <div class="picker-bar">
               <div class="picker-crumb" id="catMgrCrumb"></div>
@@ -521,7 +522,7 @@
   </section>
 
   <div id="toast" class="toast hidden" role="status"></div>
-  <script src="supabase-js.js?v=22" defer></script>
-  <script type="module" src="app.js?v=22"></script>
+  <script src="supabase-js.js?v=24" defer></script>
+  <script type="module" src="app.js?v=24"></script>
 </body>
 </html>
