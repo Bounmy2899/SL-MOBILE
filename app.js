@@ -118,7 +118,7 @@ function buildCategoryIndex() {
     directCount.set(key, (directCount.get(key) || 0) + 1);
   }
 }
-function invalidateCategoryIndex() { childIndex = null; directCount = null; }
+function invalidateCategoryIndex() { childIndex = null; directCount = null; searchTextMemo = new Map(); }
 function childrenOf(parentId) {
   if (!childIndex) buildCategoryIndex();
   return childIndex.get(parentId == null ? "root" : String(parentId)) || [];
@@ -200,7 +200,7 @@ function orderTotal(order) { return order.items.reduce((sum, item) => sum + item
 // Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
 // ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
 // ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
-const APP_VERSION = "25 · ບັດໝວດຮູບໃຫຍ່";
+const APP_VERSION = "26 · ຄົ້ນຫາລຸ້ນຕາມຍີ່ຫໍ້";
 let uploadSeq = 0;
 function safeFileName(file) {
   const raw = String(file?.name || "");
@@ -265,6 +265,36 @@ function syncCardQuantities() {
 const stockText = (product) => isOnDemand(product)
   ? "ສັ່ງໃຫ້ຕາມອໍເດີ"
   : (product.stock > 0 ? `ພ້ອມສົ່ງ ${product.stock} ຊິ້ນ` : "ສິນຄ້າໝົດ — ສັ່ງໄດ້ ຮ້ານຈະສັ່ງໃຫ້");
+
+// --- ຄົ້ນຫາລຸ້ນ: ພິມຍີ່ຫໍ້ນຳໜ້າກໍຫາເຫັນ ---------------------------------
+// ໃນຖານຂໍ້ມູນ ລຸ້ນເກັບເປັນ "A1" ຢູ່ພາຍໃຕ້ Oppo (ບໍ່ໄດ້ຕັ້ງຊື່ວ່າ "Oppo A1")
+// ຈຶ່ງເອົາຊື່ທຸກຊັ້ນເທິງມາຮວມເປັນຂໍ້ຄວາມຄົ້ນຫາ → ພິມ "oppo a1" ຫຼື "a1" ກໍພົບ
+let searchTextMemo = new Map();
+function modelSearchText(id) {
+  const key = String(id);
+  if (searchTextMemo.has(key)) return searchTextMemo.get(key);
+  const text = categoryPath(id).map(c => c.name).join(" ")
+    .toLowerCase().replace(/[._\-()\/]+/g, " ").replace(/\s+/g, " ").trim();
+  searchTextMemo.set(key, text);
+  return text;
+}
+// ແຍກຄຳທີ່ພິມ ແລ້ວທຸກຄຳຕ້ອງພົບ (ຈະພິມສະຫຼັບລຳດັບ ຫຼື ຕິດກັນກໍໄດ້)
+function modelMatches(id, raw, extraName = "") {
+  if (id == null) return false;
+  const q = String(raw || "").toLowerCase().replace(/[._\-()\/]+/g, " ").trim();
+  if (!q) return true;
+  const hay = (modelSearchText(id) + " " + String(extraName || "").toLowerCase()).trim();
+  const tight = hay.replace(/\s+/g, "");
+  return q.split(/\s+/).every(w => hay.includes(w) || tight.includes(w));
+}
+// ໃຊ້ກັບຊື່ລຸ້ນລ້ວນໆ (ຝັ່ງລູກຄ້າ ທີ່ມີແຕ່ຊື່ ບໍ່ມີ id)
+function nameMatches(name, raw) {
+  const q = String(raw || "").toLowerCase().replace(/[._\-()\/]+/g, " ").trim();
+  if (!q) return true;
+  const hay = String(name || "").toLowerCase().replace(/[._\-()\/]+/g, " ").replace(/\s+/g, " ").trim();
+  const tight = hay.replace(/\s+/g, "");
+  return q.split(/\s+/).every(w => hay.includes(w) || tight.includes(w));
+}
 
 function catCard(cat) {
   const count = productCountIn(cat.id);
@@ -407,7 +437,26 @@ function openProductDetail(productId, keepState) {
   if (!product) return;
   const imgs = productImages(product);
   const colors = productColors(product);
-  const modelNames = productModelNames(product);
+  // ຊື່ລຸ້ນທີ່ຊ້ຳກັນລະຫວ່າງຍີ່ຫໍ້ (Oppo A1 ກັບ Vivo A1) ໃຫ້ຕິດຊື່ຍີ່ຫໍ້ນຳໜ້າ
+  // ລູກຄ້າຈຶ່ງບໍ່ສັບສົນ ແລະ ພິມຄົ້ນຫາຕາມຍີ່ຫໍ້ໄດ້ເລີຍ
+  const detailModelIds = productModelIds(product);
+  const nameCount = new Map();
+  detailModelIds.forEach(id => { const n = catById(id)?.name; if (n) nameCount.set(n, (nameCount.get(n) || 0) + 1); });
+  const modelLabel = (id) => {
+    const c = catById(id); if (!c) return "";
+    if ((nameCount.get(c.name) || 0) > 1) {
+      const parent = catById(c.parentId);
+      return parent ? `${parent.name} ${c.name}` : c.name;
+    }
+    return c.name;
+  };
+  const modelIdsByName = new Map();
+  detailModelIds.forEach(id => {
+    const n = modelLabel(id); if (!n) return;
+    if (!modelIdsByName.has(n)) modelIdsByName.set(n, []);
+    modelIdsByName.get(n).push(id);
+  });
+  const modelNames = [...modelIdsByName.keys()].sort(naturalCompare);
   const imgColors = productImageColors(product);
   if (!keepState || String(detailState.productId) !== String(productId)) {
     detailState = { productId, imageIndex: 0, color: colors.length === 1 ? colors[0] : "",
@@ -441,7 +490,8 @@ function openProductDetail(productId, keepState) {
         <p class="picker-label">ເລືອກລຸ້ນໂທລະສັບຂອງທ່ານ ${detailState.model ? `<b>· ${escapeHtml(detailState.model)}</b>` : `<em>(ຍັງບໍ່ໄດ້ເລືອກ)</em>`}</p>
         ${modelNames.length > 12 ? `<label class="search-box detail-model-search"><span>⌕</span><input type="search" id="detailModelSearch" placeholder="ພິມຫາລຸ້ນ ເຊັ່ນ 15 Pro" value="${escapeHtml(detailModelQuery)}"></label>` : ""}
         <div class="color-options model-options-cust">${modelNames
-          .filter(n => !detailModelQuery || normModel(n).includes(normModel(detailModelQuery)))
+          .filter(n => !detailModelQuery || nameMatches(n, detailModelQuery)
+            || (modelIdsByName.get(n) || []).some(id => modelMatches(id, detailModelQuery)))
           .map(n => `<button type="button" class="color-chip${detailState.model === n ? " active" : ""}" data-pick-model="${escapeHtml(n)}">${escapeHtml(n)}</button>`).join("")}</div>
         <small class="muted">ຮ້ານມີເຄສນີ້ສຳລັບ ${modelNames.length} ລຸ້ນ</small>
       </div>` : ""}
@@ -1900,14 +1950,23 @@ function leavesUnder(id) {
 
 function renderModelList() {
   const box = $("#modelList"); if (!box) return;
-  const query = normModel($("#modelSearch")?.value || "");
+  const rawQuery = ($("#modelSearch")?.value || "").trim();
 
-  // ---- ໂໝດຄົ້ນຫາ: ຫາທົ່ວທຸກຊັ້ນ ບໍ່ສົນເສັ້ນທາງ ----
-  if (query) {
+  // ---- ໂໝດຄົ້ນຫາ: ຫາທົ່ວທຸກຊັ້ນ ພິມຍີ່ຫໍ້ນຳໜ້າກໍໄດ້ (ເຊັ່ນ "oppo a1") ----
+  if (rawQuery) {
     const hits = [];
     childrenOf(null).forEach(l1 => leavesUnder(l1.id).forEach(m => {
-      if (normModel(m.name).includes(query)) hits.push({ ...m, path: categoryPath(m.id).slice(0, -1).map(c => c.name).join(" › ") });
+      if (modelMatches(m.id, rawQuery)) hits.push({ ...m, path: categoryPath(m.id).slice(0, -1).map(c => c.name).join(" › ") });
     }));
+    // ຮຽງຜົນ: ຊື່ກົງເປັ໊ະມາກ່ອນ → ຂຶ້ນຕົ້ນດ້ວຍຄຳທີ່ພິມ → ອື່ນໆ (ໃນແຕ່ລະກຸ່ມຮຽງຕາມເລກ)
+    const qLast = rawQuery.toLowerCase().trim().split(/\s+/).pop();
+    const rank = (m) => {
+      const n = String(m.name).toLowerCase();
+      if (n === qLast) return 0;
+      if (n.startsWith(qLast)) return 1;
+      return 2;
+    };
+    hits.sort((a, b) => rank(a) - rank(b) || naturalCompare(a.name, b.name));
     box.innerHTML = hits.length ? `<div class="model-group"><div class="model-group-head"><b>ຜົນຄົ້ນຫາ ${hits.length} ລຸ້ນ</b>
         <span class="head-tools"><button type="button" class="small-button" data-model-all="${hits.map(h => h.id).join(",")}">ເລືອກໝົດ</button></span></div>
       <div class="model-options">${hits.slice(0, 200).map(m => `
@@ -1915,7 +1974,7 @@ function renderModelList() {
           <input type="checkbox" data-model-id="${m.id}" ${selectedModels.has(String(m.id)) ? "checked" : ""}>
           <span>${escapeHtml(m.name)}<small>${escapeHtml(m.path)}</small></span>
         </label>`).join("")}</div></div>`
-      : `<p class="muted small-copy" style="padding:12px">ບໍ່ພົບລຸ້ນ “${escapeHtml($("#modelSearch").value)}” — ໄປເພີ່ມທີ່ແທັບ “ໝວດສິນຄ້າ”</p>`;
+      : `<p class="muted small-copy" style="padding:12px">ບໍ່ພົບລຸ້ນ “${escapeHtml(rawQuery)}” — ລອງພິມແຕ່ເລກລຸ້ນ ເຊັ່ນ “a1” ຫຼື ໄປເພີ່ມທີ່ແທັບ “ໝວດສິນຄ້າ”</p>`;
     $("#modelCount").textContent = selectedModels.size;
       return;
   }
