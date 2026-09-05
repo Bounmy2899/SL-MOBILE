@@ -200,7 +200,7 @@ function orderTotal(order) { return order.items.reduce((sum, item) => sum + item
 // Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
 // ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
 // ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
-const APP_VERSION = "24 · ເລດຢວນ + ຮູບໝວດ + ແກ້ສະຕັອກໄວ";
+const APP_VERSION = "25 · ບັດໝວດຮູບໃຫຍ່";
 let uploadSeq = 0;
 function safeFileName(file) {
   const raw = String(file?.name || "");
@@ -273,9 +273,11 @@ function catCard(cat) {
     : `<span class="cat-emoji">${escapeHtml(cat.icon || "📦")}</span>`;
   const kids = childrenOf(cat.id).length;
   return `<button class="cat-card" type="button" data-cat-open="${cat.id}">
-    <span class="cat-art">${art}</span>
-    <span class="cat-name">${escapeHtml(cat.name)}</span>
-    <small>${count} ລາຍການ${kids ? ` · ${kids} ຮຸ່ນ` : ""}</small>
+    <span class="cat-art">${art}${kids ? `<span class="cat-go">ເປີດເບິ່ງ ›</span>` : ""}</span>
+    <span class="cat-body">
+      <span class="cat-name">${escapeHtml(cat.name)}</span>
+      <small>${count} ລາຍການ${kids ? ` · ${kids} ຮຸ່ນ` : ""}</small>
+    </span>
   </button>`;
 }
 
