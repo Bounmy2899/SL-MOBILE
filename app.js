@@ -45,6 +45,10 @@ let data = {
 };
 
 let cart = readJson("phonemani-cart", []);
+const SHOP_PAGE = 24;              // ແຕ້ມສິນຄ້າເທື່ອລະ 24 ໃບ (ກັນໜ້າຄ້າງ)
+let shopPageSize = SHOP_PAGE;      // ຂະຫຍາຍເມື່ອກົດ "ເບິ່ງເພີ່ມ"
+let lastShopList = [];
+let mgrPageSize = 24;               // ລາຍການສິນຄ້າຝັ່ງຜູ້ຈັດການ ກໍແຕ້ມເທື່ອລະຊຸດ
 let navPath = [];   // ເສັ້ນທາງໝວດທີ່ກຳລັງເບິ່ງ (ເລິກເທົ່າໃດກໍໄດ້)
 let navLeaf = null; // ລຸ້ນ (ໃບສຸດທ້າຍ) ທີ່ເລືອກກັ່ນຕອງຢູ່
 let activeOrderFilter = "all";
@@ -118,7 +122,7 @@ function buildCategoryIndex() {
     directCount.set(key, (directCount.get(key) || 0) + 1);
   }
 }
-function invalidateCategoryIndex() { childIndex = null; directCount = null; searchTextMemo = new Map(); }
+function invalidateCategoryIndex() { childIndex = null; directCount = null; searchTextMemo = new Map(); sellableModelsMemo = null; phoneTreeMemo = null; }
 function childrenOf(parentId) {
   if (!childIndex) buildCategoryIndex();
   return childIndex.get(parentId == null ? "root" : String(parentId)) || [];
@@ -200,7 +204,7 @@ function orderTotal(order) { return order.items.reduce((sum, item) => sum + item
 // Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
 // ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
 // ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
-const APP_VERSION = "27 · ລູກຄ້າກົດເລືອກລຸ້ນເອງ";
+const APP_VERSION = "28 · ໄວຂຶ້ນ + ເລືອກລຸ້ນໂທລະສັບຂອງທ່ານ";
 let uploadSeq = 0;
 function safeFileName(file) {
   const raw = String(file?.name || "");
@@ -296,6 +300,157 @@ function nameMatches(name, raw) {
   return q.split(/\s+/).every(w => hay.includes(w) || tight.includes(w));
 }
 
+// =======================================================================
+//  "ໂທລະສັບຂອງທ່ານລຸ້ນຫຍັງ?" — ເລືອກລຸ້ນເທື່ອດຽວ ແລ້ວເຫັນສະເພາະຂອງທີ່ໃສ່ໄດ້
+// =======================================================================
+// ໝາຍເຫດ: ລຸ້ນດຽວກັນ (ເຊັ່ນ iPhone 15) ມີຢູ່ຫຼາຍໝວດ — ທັງໃຕ້ "ເຄສ" ແລະ "ຈໍ"
+// ຈຶ່ງຕັດຊັ້ນປະເພດສິນຄ້າອອກ ແລ້ວຈັດເປັນຕົ້ນໄມ້ຂອງ "ໂທລະສັບ" ຢ່າງດຽວ
+// ລູກຄ້າເລືອກ iPhone 15 ເທື່ອດຽວ → ໄດ້ທັງເຄສ ທັງຈໍ ທັງແບັດ ຂອງລຸ້ນນັ້ນ
+
+let myModelPath = readJson("phonemani-myphone", null);   // ["iPhone","iPhone 15"]
+let myPhonePath = [];                                     // ເສັ້ນທາງທີ່ກຳລັງເປີດ ຕອນເລືອກ
+let myPhoneOpen = false;
+
+const saveMyPhone = () => { try { localStorage.setItem("phonemani-myphone", JSON.stringify(myModelPath)); } catch (e) {} };
+
+// ລຸ້ນທັງໝົດທີ່ຮ້ານມີສິນຄ້າຮອງຮັບຢູ່ຈິງ
+let sellableModelsMemo = null;
+function sellableModels() {
+  if (sellableModelsMemo) return sellableModelsMemo;
+  const set = new Set();
+  data.products.forEach(pr => {
+    productModelIds(pr).forEach(id => set.add(String(id)));
+    if (pr.categoryId != null && !childrenOf(pr.categoryId).length) set.add(String(pr.categoryId));
+  });
+  sellableModelsMemo = [...set].filter(id => catById(id));
+  return sellableModelsMemo;
+}
+
+// ເສັ້ນທາງຂອງລຸ້ນ ໂດຍຕັດຊັ້ນເທິງສຸດ (ປະເພດສິນຄ້າ) ອອກ
+const phoneNames = (id) => categoryPath(id).slice(1).map(c => c.name);
+
+// ຕົ້ນໄມ້ໂທລະສັບ: iPhone › iPhone 15 · Android › Oppo › A1
+let phoneTreeMemo = null;
+function phoneTree() {
+  if (phoneTreeMemo) return phoneTreeMemo;
+  const root = { name: "", children: new Map(), ids: [], cat: null };
+  sellableModels().forEach(id => {
+    const chain = categoryPath(id).slice(1);
+    if (!chain.length) return;
+    let node = root;
+    chain.forEach((cat, i) => {
+      if (!node.children.has(cat.name)) node.children.set(cat.name, { name: cat.name, children: new Map(), ids: [], cat });
+      node = node.children.get(cat.name);
+      if (!node.cat) node.cat = cat;
+      if (i === chain.length - 1) node.ids.push(String(id));
+    });
+  });
+  phoneTreeMemo = root;
+  return root;
+}
+const phoneNodeAt = (path) => {
+  let node = phoneTree();
+  for (const name of path) { node = node?.children.get(name); if (!node) return null; }
+  return node;
+};
+// ໄອດີໝວດທັງໝົດທີ່ກົງກັບລຸ້ນທີ່ເລືອກ (ລວມທຸກປະເພດສິນຄ້າ)
+function myModelIds() {
+  const node = myModelPath ? phoneNodeAt(myModelPath) : null;
+  if (!node) return [];
+  const out = [];
+  const walk = (n) => { out.push(...n.ids); n.children.forEach(walk); };
+  walk(node);
+  return out;
+}
+// ຊື່ທີ່ສະແດງໃຫ້ລູກຄ້າ: "iPhone 15" · "Oppo A1"
+function myModelLabel(path = myModelPath) {
+  if (!path || !path.length) return "";
+  const last = path[path.length - 1], parent = path[path.length - 2];
+  if (!parent || last.toLowerCase().includes(parent.toLowerCase())) return last;
+  return `${parent} ${last}`;
+}
+// ນັບສິນຄ້າທີ່ໃສ່ລຸ້ນນີ້ໄດ້
+function productsForMyModel() {
+  const ids = myModelIds();
+  if (!ids.length) return [];
+  const scope = new Set();
+  ids.forEach(id => descendantIds(id).forEach(x => scope.add(String(x))));
+  return data.products.filter(pr => productInScope(pr, scope));
+}
+
+// ຂ້າມຊັ້ນທີ່ມີທາງດຽວໃຫ້ອັດຕະໂນມັດ ແລ້ວຄືນລາຍການທີ່ຄວນສະແດງ
+function phoneBrowse(path) {
+  let cur = path.slice();
+  for (let guard = 0; guard < 12; guard++) {
+    const node = phoneNodeAt(cur); if (!node) return { path: [], groups: [], leaves: [] };
+    const groups = [...node.children.values()].sort((a, b) => naturalCompare(a.name, b.name));
+    const isLeaf = (n) => n.ids.length && !n.children.size;
+    const leaves = groups.filter(isLeaf);
+    const branches = groups.filter(n => !isLeaf(n));
+    if (branches.length === 1 && !leaves.length) { cur = [...cur, branches[0].name]; continue; }
+    return { path: cur, groups: branches, leaves };
+  }
+  return { path: cur, groups: [], leaves: [] };
+}
+
+function renderMyPhone() {
+  const box = $("#myPhoneBox"); if (!box) return;
+  const atHome = !navPath.length && !($("#customerSearch")?.value || "").trim();
+  if (!atHome) { box.classList.add("hidden"); return; }
+  box.classList.remove("hidden");
+
+  // ── ເລືອກໄວ້ແລ້ວ ──
+  if (myModelPath && phoneNodeAt(myModelPath)) {
+    box.innerHTML = `<div class="my-phone-bar">
+      <span class="mp-icon">📱</span>
+      <div class="mp-text"><b>ລຸ້ນຂອງທ່ານ: ${escapeHtml(myModelLabel())}</b>
+        <small>ຮ້ານມີ ${productsForMyModel().length} ລາຍການ ທີ່ໃສ່ລຸ້ນນີ້ໄດ້</small></div>
+      <div class="mp-tools">
+        <button type="button" class="small-button" data-myphone-change="1">ປ່ຽນລຸ້ນ</button>
+        <button type="button" class="small-button" data-myphone-clear="1">✕ ເບິ່ງທັງໝົດ</button>
+      </div>
+    </div>`;
+    return;
+  }
+  if (!sellableModels().length) { box.classList.add("hidden"); return; }
+
+  // ── ຍັງບໍ່ໄດ້ເລືອກ ──
+  if (!myPhoneOpen) {
+    box.innerHTML = `<button type="button" class="my-phone-cta" data-myphone-open="1">
+      <span class="mp-icon">📱</span>
+      <span class="mp-cta-text"><b>ໂທລະສັບຂອງທ່ານລຸ້ນຫຍັງ?</b>
+        <small>ກົດເລືອກລຸ້ນ ແລ້ວເຮົາຈະສະແດງສະເພາະເຄສ ຈໍ ແບັດ ທີ່ໃສ່ລຸ້ນນັ້ນໄດ້</small></span>
+      <span class="mp-go">ເລືອກລຸ້ນ ›</span>
+    </button>`;
+    return;
+  }
+
+  // ── ກຳລັງເລືອກ ──
+  const view = phoneBrowse(myPhonePath);
+  myPhonePath = view.path;
+  const baseDepth = phoneBrowse([]).path.length;
+  const crumb = view.path.slice(baseDepth);
+  const nodeCount = (n) => { let c = n.ids.length; n.children.forEach(k => { c += nodeCount(k); }); return c; };
+  box.innerHTML = `<div class="my-phone-pick">
+    <div class="mpp-head">
+      <b>📱 ເລືອກລຸ້ນໂທລະສັບຂອງທ່ານ</b>
+      <button type="button" class="small-button" data-myphone-cancel="1">✕ ປິດ</button>
+    </div>
+    ${crumb.length ? `<div class="model-nav">
+      <button type="button" class="model-back" data-myphone-up="1"><span aria-hidden="true">‹</span> ກັບຄືນ</button>
+      <span class="model-here">${crumb.map(escapeHtml).join(" › ")}</span>
+    </div>` : ""}
+    ${view.groups.length ? `<div class="model-brands">${view.groups.map(g => `
+      <button type="button" class="brand-btn" data-myphone-into="${escapeHtml(g.name)}">
+        <span class="bb-art">${g.cat?.image ? `<img src="${escapeHtml(g.cat.image)}" alt="" loading="lazy">` : escapeHtml(g.cat?.icon || "📱")}</span>
+        <span class="bb-name">${escapeHtml(g.name)}</span>
+        <span class="bb-meta">${nodeCount(g)} ລຸ້ນ ›</span>
+      </button>`).join("")}</div>` : ""}
+    ${view.leaves.length ? `<div class="color-options model-options-cust">${view.leaves
+      .map(n => `<button type="button" class="color-chip" data-myphone-pick="${escapeHtml(n.name)}">${escapeHtml(n.name)}</button>`).join("")}</div>` : ""}
+  </div>`;
+}
+
 function catCard(cat) {
   const count = productCountIn(cat.id);
   const art = cat.image
@@ -323,6 +478,33 @@ window.addEventListener("popstate", () => {
   if (navLeaf || navPath.length) { goBackOneLevel(); renderCustomerShop(); pushNavState(); }
 });
 
+function productCard(product) {
+  const qty = cart.filter(line => String(line.productId) === String(product.id)).reduce((n, l) => n + l.quantity, 0);
+    const path = categoryPath(product.categoryId);
+    const label = path.length ? path.map(c => escapeHtml(c.name)).join(" · ") : "ບໍ່ມີໝວດ";
+    const imgs = productImages(product);
+    const colors = productColors(product);
+    const modelNames = productModelNames(product);
+    return `<article class="product-card">
+      <button class="product-card-media" type="button" data-open-product="${product.id}" aria-label="ເບິ່ງລາຍລະອຽດ ${escapeHtml(product.name)}">
+        <div class="product-image">${imageMarkup(product)}</div>
+        ${imgs.length > 1 ? `<span class="img-count">🖼 ${imgs.length}</span>` : ""}
+        <span class="view-hint">ກົດເບິ່ງລາຍລະອຽດ</span>
+      </button>
+      <div class="product-body">
+        <p class="product-category">${label}</p>
+        <h3 class="product-name">${escapeHtml(product.name)}</h3>
+        <p class="product-description">${escapeHtml(product.description || "ສິນຄ້າຄຸນນະພາບ ພ້ອມໃຫ້ເລືອກ")}</p>
+        ${modelNames.length ? `<p class="fits-line">ໃສ່ໄດ້ <b>${modelNames.length}</b> ລຸ້ນ · ${escapeHtml(modelNames.slice(0,2).join(", "))}${modelNames.length > 2 ? " …" : ""}</p>` : ""}
+        ${colors.length ? `<div class="color-dots">${colors.slice(0,6).map(c => `<span title="${escapeHtml(c)}">${escapeHtml(c)}</span>`).join("")}${colors.length > 6 ? `<span>+${colors.length - 6}</span>` : ""}</div>` : ""}
+        <div class="product-bottom"><div><strong class="product-price">${money(product.price)}</strong><span class="product-stock">${stockText(product)}</span></div></div>
+        <div class="card-actions">
+          <button class="buy-now" type="button" data-open-product="${product.id}">${colors.length ? "ເລືອກສີ & ສັ່ງ" : "ເບິ່ງ & ສັ່ງ"}${qty ? ` (${qty})` : ""}</button>
+        </div>
+      </div></article>`;
+
+}
+
 function renderCustomerShop() {
   if (loadErrorShown && !data.products.length) return;
   const query = $("#customerSearch").value.trim().toLowerCase();
@@ -345,7 +527,22 @@ function renderCustomerShop() {
 
   grid.innerHTML = ""; grid.classList.add("hidden");
   chips.innerHTML = ""; chips.classList.add("hidden");
+  renderMyPhone();
   let showProducts = [];
+
+  // ລູກຄ້າເລືອກລຸ້ນໂທລະສັບຂອງຕົນໄວ້ → ສະແດງສະເພາະສິນຄ້າທີ່ໃສ່ລຸ້ນນັ້ນໄດ້ (ທຸກປະເພດ)
+  if (!searching && !navPath.length && myModelPath && phoneNodeAt(myModelPath)) {
+    const fit = productsForMyModel();
+    const shown = fit.slice(0, shopPageSize);
+    lastShopList = fit;
+    $("#productGrid").innerHTML = fit.length
+      ? shown.map(productCard).join("") + (fit.length > shown.length
+          ? `<button type="button" id="showMoreProducts" class="show-more">ເບິ່ງເພີ່ມ · ຍັງເຫຼືອ ${fit.length - shown.length} ລາຍການ</button>` : "")
+      : `<div class="empty-state" style="grid-column:1/-1"><h3>ຍັງບໍ່ມີສິນຄ້າສຳລັບລຸ້ນນີ້</h3>
+         <p>ລອງກົດ “✕ ເບິ່ງທັງໝົດ” ຂ້າງເທິງ ຫຼື ໂທຫາຮ້ານໄດ້ເລີຍ</p></div>`;
+    $("#emptyProducts").classList.add("hidden");
+    return;
+  }
 
   if (searching) {
     showProducts = data.products;
@@ -391,31 +588,14 @@ function renderCustomerShop() {
     return `${product.name} ${product.description} ${path} ${models}`.toLowerCase().includes(query);
   });
 
-  $("#productGrid").innerHTML = products.map(product => {
-    const qty = cart.filter(line => String(line.productId) === String(product.id)).reduce((n, l) => n + l.quantity, 0);
-    const path = categoryPath(product.categoryId);
-    const label = path.length ? path.map(c => escapeHtml(c.name)).join(" · ") : "ບໍ່ມີໝວດ";
-    const imgs = productImages(product);
-    const colors = productColors(product);
-    const modelNames = productModelNames(product);
-    return `<article class="product-card">
-      <button class="product-card-media" type="button" data-open-product="${product.id}" aria-label="ເບິ່ງລາຍລະອຽດ ${escapeHtml(product.name)}">
-        <div class="product-image">${imageMarkup(product)}</div>
-        ${imgs.length > 1 ? `<span class="img-count">🖼 ${imgs.length}</span>` : ""}
-        <span class="view-hint">ກົດເບິ່ງລາຍລະອຽດ</span>
-      </button>
-      <div class="product-body">
-        <p class="product-category">${label}</p>
-        <h3 class="product-name">${escapeHtml(product.name)}</h3>
-        <p class="product-description">${escapeHtml(product.description || "ສິນຄ້າຄຸນນະພາບ ພ້ອມໃຫ້ເລືອກ")}</p>
-        ${modelNames.length ? `<p class="fits-line">ໃສ່ໄດ້ <b>${modelNames.length}</b> ລຸ້ນ · ${escapeHtml(modelNames.slice(0,2).join(", "))}${modelNames.length > 2 ? " …" : ""}</p>` : ""}
-        ${colors.length ? `<div class="color-dots">${colors.slice(0,6).map(c => `<span title="${escapeHtml(c)}">${escapeHtml(c)}</span>`).join("")}${colors.length > 6 ? `<span>+${colors.length - 6}</span>` : ""}</div>` : ""}
-        <div class="product-bottom"><div><strong class="product-price">${money(product.price)}</strong><span class="product-stock">${stockText(product)}</span></div></div>
-        <div class="card-actions">
-          <button class="buy-now" type="button" data-open-product="${product.id}">${colors.length ? "ເລືອກສີ & ສັ່ງ" : "ເບິ່ງ & ສັ່ງ"}${qty ? ` (${qty})` : ""}</button>
-        </div>
-      </div></article>`;
-  }).join("");
+  // ---- ແຕ້ມເທື່ອລະຊຸດ ບໍ່ຖິ້ມທັງໝົດລົງໜ້າດຽວ ----
+  // ສິນຄ້າ 300-1000 ລາຍການ ຖ້າແຕ້ມໝົດເທື່ອດຽວ ໜ້າຈະຄ້າງ 200ms+ ທຸກເທື່ອທີ່ກົດ
+  // ຈຶ່ງແຕ້ມ 24 ໃບກ່ອນ ແລ້ວຄ່ອຍເພີ່ມເມື່ອລູກຄ້າເລື່ອນລົງ
+  const shownList = products.slice(0, shopPageSize);
+  $("#productGrid").innerHTML = shownList.map(productCard).join("") + (products.length > shownList.length
+    ? `<button type="button" id="showMoreProducts" class="show-more">ເບິ່ງເພີ່ມ · ຍັງເຫຼືອ ${products.length - shownList.length} ລາຍການ</button>`
+    : "");
+  lastShopList = products;
 
   if (!firstLoadDone && !data.products.length) {
     $("#productGrid").innerHTML = Array.from({ length: 4 }, () =>
@@ -1575,7 +1755,9 @@ function renderManagerProducts() {
   const totalStock = list.reduce((sum, pr) => sum + Number(pr.stock || 0), 0);
   $("#manageCount").innerHTML = `ສະແດງ <b>${list.length}</b> ລາຍການ · ສະຕັອກລວມ <b>${totalStock}</b> ຊິ້ນ`;
 
-  $("#managerProducts").innerHTML = list.length ? list.map(product => {
+  // ແຕ້ມເທື່ອລະຊຸດຄືກັນ — ຮ້ານທີ່ມີສິນຄ້າ 1000 ລາຍການ ຈະບໍ່ຄ້າງຕອນເປີດແທັບ
+  const mShown = list.slice(0, mgrPageSize);
+  $("#managerProducts").innerHTML = list.length ? mShown.map(product => {
     const path = categoryPath(product.categoryId);
     const label = path.length ? path.map(c => escapeHtml(c.name)).join(" › ") : "ບໍ່ມີໝວດ";
     const imgs = productImages(product); const cols = productColors(product); const mdl = productModelIds(product);
@@ -1606,7 +1788,9 @@ function renderManagerProducts() {
         ${Number(product.yuanPrice || 0) > 0 ? `<span class="yuan-tag">¥ ${Number(product.yuanPrice)}${Number(product.shipCost || 0) ? ` + ຂົນສົ່ງ ${money(product.shipCost)}` : ""}</span>` : ""}</div>
       <div class="product-tools"><button class="small-button" data-edit-product="${product.id}">ແກ້ໄຂ</button><button class="small-button delete" data-delete-product="${product.id}">ລຶບ</button></div>
     </article>`;
-  }).join("") : `<div class="empty-state"><h3>${data.products.length ? "ບໍ່ພົບສິນຄ້າໃນມູມມອງນີ້" : "ຍັງບໍ່ມີສິນຄ້າ"}</h3><p>${data.products.length ? "ລອງເລືອກໝວດອື່ນ ຫຼື ຄົ້ນຫາໃໝ່" : "ກົດ “ເພີ່ມສິນຄ້າ” ເພື່ອເລີ່ມຕົ້ນ"}</p></div>`;
+  }).join("") + (list.length > mShown.length
+      ? `<button type="button" id="mgrShowMore" class="show-more">ເບິ່ງເພີ່ມ · ຍັງເຫຼືອ ${list.length - mShown.length} ລາຍການ</button>` : "")
+    : `<div class="empty-state"><h3>${data.products.length ? "ບໍ່ພົບສິນຄ້າໃນມູມມອງນີ້" : "ຍັງບໍ່ມີສິນຄ້າ"}</h3><p>${data.products.length ? "ລອງເລືອກໝວດອື່ນ ຫຼື ຄົ້ນຫາໃໝ່" : "ກົດ “ເພີ່ມສິນຄ້າ” ເພື່ອເລີ່ມຕົ້ນ"}</p></div>`;
 }
 
 // ---------- ໜ້າ “ຕ້ອງສັ່ງສິນຄ້າ” ----------
@@ -1938,7 +2122,7 @@ function openProductForm(product = null) {
     }
     setImagePreview(`<span class="input-hint">ຍັງບໍ່ໄດ້ເລືອກຮູບ</span>`);
   }
-  setPriceMode(); recalcCostFromYuan(true); $("#productFormWrap").classList.remove("hidden"); $("#productFormWrap").scrollIntoView({ behavior: "smooth", block: "start" });
+  setPriceMode(); recalcCostFromYuan(true); $("#productFormWrap").classList.remove("hidden"); $("#productFormWrap").scrollIntoView({ block: "start" });
 }
 // ---------- ລາຍການຕິກເລືອກລຸ້ນ ----------
 
@@ -2279,8 +2463,12 @@ async function refreshSettings() {
 }
 function renderAll() {
   renderCustomerShop(); renderCart();
+  // ໜ້າຫຼັງບ້ານ ແຕ້ມສະເພາະຕອນທີ່ຜູ້ຈັດການ login ແລ້ວ ແລະ ເປີດເບິ່ງຢູ່
+  // (ລູກຄ້າທົ່ວໄປບໍ່ຕ້ອງແບກພາລະແຕ້ມຕາຕະລາງຫຼັງບ້ານເປັນພັນແຖວ)
+  if (!managerOpen()) return;
   renderDashboard(); renderOrders(); renderRestock(); renderShipping(); renderSlips(); renderManagerProducts(); renderCategoriesManager(); renderProductCategories(); renderFinancials(); renderBooks();
 }
+const managerOpen = () => !!managerUser && !$("#managerView")?.classList.contains("hidden");
 // ກວດເບິ່ງວ່າຕິດຕໍ່ຖານຂໍ້ມູນໄດ້ບໍ ຕອນເປີດເວັບ — ຖ້າບໍ່ໄດ້ ໃຫ້ບອກຜູ້ໃຊ້ທັນທີ
 async function checkConnection() {
   try {
@@ -2368,7 +2556,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!authReadyOnce) { authReadyOnce = true; if (managerUser) showManager(); }
   });
 
-  $("#customerSearch").addEventListener("input", renderCustomerShop);
+  $("#customerSearch").addEventListener("input", () => { shopPageSize = SHOP_PAGE; renderCustomerShop(); });
   $("#productDetailBody").addEventListener("input", event => {
     if (event.target.id !== "detailModelSearch") return;
     detailModelQuery = event.target.value;
@@ -2657,6 +2845,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // ປຸ່ມເພີ່ມ / ລົບ ສະຕັອກ
   $("#managerProducts").addEventListener("click", event => {
     const minus = event.target.closest("[data-stock-minus]"); const plus = event.target.closest("[data-stock-plus]");
+    if (event.target.closest("#mgrShowMore")) { mgrPageSize += 48; return renderManagerProducts(); }
     if (minus) return adjustStock(minus.dataset.stockMinus, -1);
     if (plus) return adjustStock(plus.dataset.stockPlus, 1);
     // ໝົດແລ້ວ = ຕັ້ງສະຕັອກເປັນ 0 ໃນເທື່ອດຽວ
@@ -2744,9 +2933,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // ---- ກັ່ນຕອງ / ຄົ້ນຫາ ໃນໜ້າຈັດການສິນຄ້າ ----
   $("#manageCategoryFilter").addEventListener("click", event => {
     const button = event.target.closest("[data-manage-cat]"); if (!button) return;
-    manageCategoryFilter = button.dataset.manageCat; renderManagerProducts();
+    manageCategoryFilter = button.dataset.manageCat; mgrPageSize = 24; renderManagerProducts();
   });
-  $("#manageProductSearch").addEventListener("input", renderManagerProducts);
+  $("#manageProductSearch").addEventListener("input", () => { mgrPageSize = 24; renderManagerProducts(); });
 
   // ---- ລຶບອໍເດີ (ເຊັ່ນ ອໍເດີທີ່ລອງທົດສອບ) ----
   document.addEventListener("click", async event => {
@@ -2787,16 +2976,58 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
   // ---- ນຳທາງໝວດ 3 ຊັ້ນ (ໜ້າຮ້ານ) ----
+  // ກົດ "ເບິ່ງເພີ່ມ" ຫຼື ເລື່ອນລົງຮອດ = ແຕ້ມສິນຄ້າຊຸດຕໍ່ໄປ
+  $("#productGrid").addEventListener("click", event => {
+    if (!event.target.closest("#showMoreProducts")) return;
+    shopPageSize += SHOP_PAGE * 2;
+    renderCustomerShop();
+  });
+  const moreWatcher = new IntersectionObserver(entries => {
+    if (!entries.some(e => e.isIntersecting)) return;
+    if (shopPageSize >= lastShopList.length) return;
+    shopPageSize += SHOP_PAGE * 2;
+    renderCustomerShop();
+  }, { rootMargin: "600px" });
+  const watchMore = () => { const b = $("#showMoreProducts"); if (b) moreWatcher.observe(b); };
+  new MutationObserver(watchMore).observe($("#productGrid"), { childList: true });
+
+  // ---- "ໂທລະສັບຂອງທ່ານລຸ້ນຫຍັງ?" ----
+  $("#myPhoneBox").addEventListener("click", event => {
+    const t = event.target;
+    if (t.closest("[data-myphone-open]")) { myPhoneOpen = true; myPhonePath = []; return renderCustomerShop(); }
+    if (t.closest("[data-myphone-cancel]")) { myPhoneOpen = false; return renderCustomerShop(); }
+    if (t.closest("[data-myphone-change]")) { myModelPath = null; saveMyPhone(); myPhoneOpen = true; myPhonePath = []; shopPageSize = SHOP_PAGE; return renderCustomerShop(); }
+    if (t.closest("[data-myphone-clear]")) { myModelPath = null; saveMyPhone(); myPhoneOpen = false; shopPageSize = SHOP_PAGE; return renderCustomerShop(); }
+    const into = t.closest("[data-myphone-into]");
+    if (into) { myPhonePath = [...myPhonePath, into.dataset.myphoneInto]; return renderCustomerShop(); }
+    if (t.closest("[data-myphone-up]")) {
+      let path = myPhonePath.slice(0, -1);
+      const same = (a) => a.join("|") === myPhonePath.join("|");
+      while (path.length && same(phoneBrowse(path).path)) path = path.slice(0, -1);
+      myPhonePath = path; return renderCustomerShop();
+    }
+    const pick = t.closest("[data-myphone-pick]");
+    if (pick) {
+      myModelPath = [...myPhonePath, pick.dataset.myphonePick];
+      saveMyPhone(); myPhoneOpen = false; shopPageSize = SHOP_PAGE;
+      renderCustomerShop();
+      toast(`ສະແດງສິນຄ້າສຳລັບ ${myModelLabel()} ແລ້ວ`);
+      $("#products")?.scrollIntoView({ block: "start" });
+    }
+  });
+
   $("#catGrid").addEventListener("click", event => {
     const card = event.target.closest("[data-cat-open]"); if (!card) return;
     navPath.push(card.dataset.catOpen); navLeaf = null;
+    shopPageSize = SHOP_PAGE;
     pushNavState();
     renderCustomerShop();
-    $("#products").scrollIntoView({ behavior: "smooth", block: "start" });
+    $("#products").scrollIntoView({ block: "start" });
   });
   $("#catBreadcrumb").addEventListener("click", event => {
     const button = event.target.closest("[data-cat-goto]"); if (!button) return;
     const target = button.dataset.catGoto;
+    shopPageSize = SHOP_PAGE;
     if (target === "root") { navPath = []; navLeaf = null; }        // ✕ ອອກ = ກັບໜ້າຫຼັກຮ້ານທັນທີ
     else if (target === "back") { goBackOneLevel(); }               // ‹ ກັບຄືນ = ຖອຍເທື່ອລະຂັ້ນ
     else {
@@ -2805,13 +3036,13 @@ document.addEventListener("DOMContentLoaded", () => {
       navLeaf = null;
     }
     renderCustomerShop();
-    $("#products")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    $("#products")?.scrollIntoView({ block: "start" });
   });
   $("#catChips").addEventListener("click", event => {
     const button = event.target.closest("[data-cat-model]"); if (!button) return;
     const nextLeaf = button.dataset.catModel === "all" ? null : button.dataset.catModel;
     if (nextLeaf && !navLeaf) pushNavState();
-    navLeaf = nextLeaf;
+    navLeaf = nextLeaf; shopPageSize = SHOP_PAGE;
     renderCustomerShop();
   });
 
