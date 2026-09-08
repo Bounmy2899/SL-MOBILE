@@ -200,7 +200,7 @@ function orderTotal(order) { return order.items.reduce((sum, item) => sum + item
 // Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
 // ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
 // ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
-const APP_VERSION = "26 · ຄົ້ນຫາລຸ້ນຕາມຍີ່ຫໍ້";
+const APP_VERSION = "27 · ລູກຄ້າກົດເລືອກລຸ້ນເອງ";
 let uploadSeq = 0;
 function safeFileName(file) {
   const raw = String(file?.name || "");
@@ -432,6 +432,39 @@ let detailState = { productId: null, imageIndex: 0, color: "", model: "" };
 let detailModelQuery = "";
 let pendingTransfer = null;   // ອໍເດີທີ່ລໍໃບໂອນ
 
+// --- ເລືອກລຸ້ນແບບກົດເຂົ້າໄປເທື່ອລະຊັ້ນ (ຝັ່ງລູກຄ້າ) ------------------------
+// ລູກຄ້າບໍ່ຕ້ອງພິມໃຫ້ຖືກ — ກົດ iPhone ຫຼື Android › Oppo ແລ້ວເລືອກລຸ້ນເອົາເລີຍ
+let detailModelPath = [];   // ເສັ້ນທາງທີ່ກຳລັງເປີດຢູ່ ໃນຕົວເລືອກລຸ້ນຂອງລູກຄ້າ
+
+const modelChain = (id) => categoryPath(id).map(c => String(c.id));   // [ເຄສ, Android, Oppo, A1]
+
+// ຈັດລຸ້ນຂອງສິນຄ້ານີ້ ເປັນຊັ້ນຕາມເສັ້ນທາງ ແລ້ວຂ້າມຊັ້ນທີ່ມີທາງດຽວໃຫ້ອັດຕະໂນມັດ
+function modelBrowse(ids, path) {
+  let cur = path.slice();
+  for (let guard = 0; guard < 12; guard++) {
+    const depth = cur.length;
+    const inPath = ids.filter(id => {
+      const chain = modelChain(id);
+      return cur.every((p, i) => chain[i] === String(p));
+    });
+    const groups = new Map();   // nodeId -> {cat, models:[]}
+    const leaves = [];
+    inPath.forEach(id => {
+      const chain = modelChain(id);
+      const node = chain[depth];
+      if (node == null || String(node) === String(id)) { leaves.push(id); return; }
+      if (!groups.has(node)) groups.set(node, { cat: catById(node), models: [] });
+      groups.get(node).models.push(id);
+    });
+    // ມີທາງດຽວ ແລະ ບໍ່ມີລຸ້ນຢູ່ຊັ້ນນີ້ → ລົງໄປໃຫ້ເລີຍ ບໍ່ໃຫ້ລູກຄ້າກົດຊ້ຳໆ
+    if (groups.size === 1 && !leaves.length) { cur.push([...groups.keys()][0]); continue; }
+    const list = [...groups.values()].filter(g => g.cat)
+      .sort((a, b) => naturalCompare(a.cat.name, b.cat.name));
+    return { path: cur, groups: list, leaves, total: inPath.length };
+  }
+  return { path: cur, groups: [], leaves: ids, total: ids.length };
+}
+
 function openProductDetail(productId, keepState) {
   const product = productById(productId);
   if (!product) return;
@@ -462,6 +495,7 @@ function openProductDetail(productId, keepState) {
     detailState = { productId, imageIndex: 0, color: colors.length === 1 ? colors[0] : "",
                     model: productModelNames(product).length === 1 ? productModelNames(product)[0] : "" };
     detailModelQuery = "";
+    detailModelPath = [];
   }
   const idx = Math.min(detailState.imageIndex, Math.max(0, imgs.length - 1));
   const main = imgs[idx];
@@ -486,15 +520,50 @@ function openProductDetail(productId, keepState) {
       <strong class="detail-price">${money(product.price)}</strong>
       <span class="product-stock">${stockText(product)}</span>
       <p class="detail-desc">${escapeHtml(product.description || "ສິນຄ້າຄຸນນະພາບ ພ້ອມໃຫ້ເລືອກ")}</p>
-      ${modelNames.length ? `<div class="color-picker" id="detailModelBox">
-        <p class="picker-label">ເລືອກລຸ້ນໂທລະສັບຂອງທ່ານ ${detailState.model ? `<b>· ${escapeHtml(detailState.model)}</b>` : `<em>(ຍັງບໍ່ໄດ້ເລືອກ)</em>`}</p>
-        ${modelNames.length > 12 ? `<label class="search-box detail-model-search"><span>⌕</span><input type="search" id="detailModelSearch" placeholder="ພິມຫາລຸ້ນ ເຊັ່ນ 15 Pro" value="${escapeHtml(detailModelQuery)}"></label>` : ""}
-        <div class="color-options model-options-cust">${modelNames
-          .filter(n => !detailModelQuery || nameMatches(n, detailModelQuery)
-            || (modelIdsByName.get(n) || []).some(id => modelMatches(id, detailModelQuery)))
-          .map(n => `<button type="button" class="color-chip${detailState.model === n ? " active" : ""}" data-pick-model="${escapeHtml(n)}">${escapeHtml(n)}</button>`).join("")}</div>
-        <small class="muted">ຮ້ານມີເຄສນີ້ສຳລັບ ${modelNames.length} ລຸ້ນ</small>
-      </div>` : ""}
+      ${modelNames.length ? (() => {
+        const chip = (id) => {
+          const label = modelLabel(id);
+          return `<button type="button" class="color-chip${detailState.model === label ? " active" : ""}" data-pick-model="${escapeHtml(label)}">${escapeHtml(label)}</button>`;
+        };
+        // ── ໂໝດພິມຄົ້ນຫາ: ສະແດງແບບແປນ ບໍ່ສົນຊັ້ນ ──
+        if (detailModelQuery) {
+          const hits = detailModelIds.filter(id =>
+            modelMatches(id, detailModelQuery) || nameMatches(modelLabel(id), detailModelQuery));
+          return `<div class="color-picker" id="detailModelBox">
+            <p class="picker-label">ເລືອກລຸ້ນໂທລະສັບຂອງທ່ານ ${detailState.model ? `<b>· ${escapeHtml(detailState.model)}</b>` : `<em>(ຍັງບໍ່ໄດ້ເລືອກ)</em>`}</p>
+            <label class="search-box detail-model-search"><span>⌕</span><input type="search" id="detailModelSearch" placeholder="ພິມຫາລຸ້ນ ເຊັ່ນ 15 Pro" value="${escapeHtml(detailModelQuery)}"></label>
+            <div class="color-options model-options-cust">${hits.length
+              ? [...new Set(hits.map(modelLabel))].sort(naturalCompare).map(n =>
+                  `<button type="button" class="color-chip${detailState.model === n ? " active" : ""}" data-pick-model="${escapeHtml(n)}">${escapeHtml(n)}</button>`).join("")
+              : `<p class="muted small-copy" style="padding:10px">ບໍ່ພົບ “${escapeHtml(detailModelQuery)}” — ລອງລຶບຄຳຄົ້ນຫາ ແລ້ວກົດເລືອກຈາກລາຍການ</p>`}</div>
+            <small class="muted">ຮ້ານມີເຄສນີ້ສຳລັບ ${modelNames.length} ລຸ້ນ</small>
+          </div>`;
+        }
+        // ── ໂໝດກົດເລືອກເທື່ອລະຊັ້ນ: iPhone / Android › Oppo › ລຸ້ນ ──
+        const view = modelBrowse(detailModelIds, detailModelPath);
+        detailModelPath = view.path;
+        // ຊັ້ນທີ່ລະບົບຂ້າມໃຫ້ເອງ ບໍ່ນັບ — ບໍ່ໃຫ້ຂຶ້ນປຸ່ມກັບຄືນ ຫຼື ເສັ້ນທາງຍາວໆ ໂດຍບໍ່ຈຳເປັນ
+        const baseDepth = modelBrowse(detailModelIds, []).path.length;
+        const crumbCats = view.path.slice(baseDepth).map(id => catById(id)).filter(Boolean);
+        const canBack = view.path.length > baseDepth;
+        return `<div class="color-picker" id="detailModelBox">
+          <p class="picker-label">ເລືອກລຸ້ນໂທລະສັບຂອງທ່ານ ${detailState.model ? `<b>· ${escapeHtml(detailState.model)}</b>` : `<em>(ຍັງບໍ່ໄດ້ເລືອກ)</em>`}</p>
+          ${canBack ? `<div class="model-nav">
+            <button type="button" class="model-back" data-model-up="1"><span aria-hidden="true">‹</span> ກັບຄືນ</button>
+            <span class="model-here">${crumbCats.map(c => escapeHtml(c.name)).join(" › ")}</span>
+          </div>` : ""}
+          ${detailModelIds.length > 12 ? `<label class="search-box detail-model-search"><span>⌕</span><input type="search" id="detailModelSearch" placeholder="ຫຼື ພິມຫາລຸ້ນ ເຊັ່ນ 15 Pro" value=""></label>` : ""}
+          ${view.groups.length ? `<div class="model-brands">${view.groups.map(g => `
+            <button type="button" class="brand-btn" data-model-into="${g.cat.id}">
+              <span class="bb-art">${g.cat.image ? `<img src="${escapeHtml(g.cat.image)}" alt="" loading="lazy">` : escapeHtml(g.cat.icon || "📱")}</span>
+              <span class="bb-name">${escapeHtml(g.cat.name)}</span>
+              <span class="bb-meta">${g.models.length} ລຸ້ນ ›</span>
+            </button>`).join("")}</div>` : ""}
+          ${view.leaves.length ? `<div class="color-options model-options-cust">${
+            view.leaves.slice().sort((a, b) => naturalCompare(modelLabel(a), modelLabel(b))).map(chip).join("")}</div>` : ""}
+          <small class="muted">${canBack ? `ໃນ ${escapeHtml(crumbCats[crumbCats.length - 1].name)} ມີ ${view.total} ລຸ້ນ · ` : ""}ຮ້ານມີເຄສນີ້ສຳລັບ ${modelNames.length} ລຸ້ນ</small>
+        </div>`;
+      })() : ""}
       ${colors.length ? `<div class="color-picker" id="detailColorBox">
         <p class="picker-label">ເລືອກສີ ${detailState.color ? `<b>· ${escapeHtml(detailState.color)}</b>` : `<em>(ຍັງບໍ່ໄດ້ເລືອກ)</em>`}</p>
         <div class="color-options">${colors.map(c =>
@@ -2761,6 +2830,19 @@ document.addEventListener("DOMContentLoaded", () => {
     if (pickColor) { detailState.color = pickColor.dataset.pickColor; updateDetailColor(); return syncColorToImage(); }
     const pickModel = event.target.closest("[data-pick-model]");
     if (pickModel) { detailState.model = pickModel.dataset.pickModel; return updateDetailModel(); }
+    // ກົດເຂົ້າຍີ່ຫໍ້ / ກົດກັບຄືນ ໃນຕົວເລືອກລຸ້ນ
+    const into = event.target.closest("[data-model-into]");
+    if (into) { detailModelPath = [...detailModelPath, into.dataset.modelInto]; detailModelQuery = ""; return openProductDetail(detailState.productId, true); }
+    const up = event.target.closest("[data-model-up]");
+    if (up) {
+      const ids = productModelIds(productById(detailState.productId));
+      let path = detailModelPath.slice(0, -1);
+      const same = (a) => a.join("|") === detailModelPath.join("|");
+      // ຖອຍຈົນກວ່າຈະໄດ້ໜ້າໃໝ່ຈິງໆ (ຊັ້ນທີ່ມີທາງດຽວ ລະບົບຈະລົງໄປໃຫ້ອີກ)
+      while (path.length && same(modelBrowse(ids, path).path)) path = path.slice(0, -1);
+      detailModelPath = path; detailModelQuery = "";
+      return openProductDetail(detailState.productId, true);
+    }
     if (zoom) return openImageViewer(zoom.dataset.zoomImage);
     if (add) {
       if (!addToCart(add.dataset.detailAdd, detailState.color, detailState.model)) return;
