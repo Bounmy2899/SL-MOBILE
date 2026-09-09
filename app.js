@@ -80,10 +80,12 @@ const bySort = (a, b) => (a.sort ?? 0) - (b.sort ?? 0) || String(a.name).localeC
 //   ຕົວອັກສອນທຽບແບບ ກ→ຮ / a→z   ·   ຕົວເລກທຽບຄ່າຈິງ (7 ມາກ່ອນ 15)
 // ຜົນ: Vivo X100 · X200 · X300 ຢູ່ນຳກັນ ສ່ວນ Vivo A200 ແຍກໄປອີກກຸ່ມ
 //      iPhone 7 · 8 · 11 · 15 ຮຽງຕາມເລກ ບໍ່ແມ່ນ 11 · 15 · 7
+// ແຍກເປັນທ່ອນ ຕົວອັກສອນ / ຕົວເລກ ແລ້ວຕັດຊ່ອງວ່າງອອກສະເພາະທ່ອນຕົວອັກສອນ
+// → "Y 27" ຢູ່ບ່ອນດຽວກັບ "Y27"  ແຕ່ "A15 5G" ຍັງເປັນ 15 ກັບ 5 ບໍ່ກາຍເປັນ 155
 const natTokens = (name) => String(name || "")
-  .toLowerCase().replace(/\s+/g, " ").trim()
-  .split(/(\d+)/).filter(t => t !== "")
-  .map(t => /^\d+$/.test(t) ? Number(t) : t);
+  .toLowerCase().split(/(\d+)/)
+  .map(t => /^\d+$/.test(t) ? Number(t) : t.replace(/\s+/g, ""))
+  .filter(t => t !== "");
 
 function naturalCompare(a, b) {
   const ta = natTokens(a), tb = natTokens(b);
@@ -204,7 +206,7 @@ function orderTotal(order) { return order.items.reduce((sum, item) => sum + item
 // Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
 // ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
 // ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
-const APP_VERSION = "28 · ໄວຂຶ້ນ + ເລືອກລຸ້ນໂທລະສັບຂອງທ່ານ";
+const APP_VERSION = "29 · ວາງລາຍຊື່ລຸ້ນ 1 ແຖວ 1 ລຸ້ນ";
 let uploadSeq = 0;
 function safeFileName(file) {
   const raw = String(file?.name || "");
@@ -2133,8 +2135,13 @@ let modelPasteOpen = false;   // ກ່ອງ "ວາງລາຍຊື່ລຸ
 // ຂັ້ນດ້ວຍ: ຂຶ້ນແຖວໃໝ່ · ຈຸດ (.) · ຈຸດເມັດ (• ·) · ຈຸດພາກ (,) · ເຊມິໂຄລອນ · ແທັບ
 // ບໍ່ຂັ້ນດ້ວຍ "ຊ່ອງວ່າງ" — ເພາະ "A15 5G" ຄືລຸ້ນດຽວ ບໍ່ແມ່ນສອງລຸ້ນ
 function splitModelText(text) {
-  return String(text || "")
-    .split(/[\n\r\t.,;|•·]+/)
+  const raw = String(text || "");
+  // ຫຼັກ: 1 ແຖວ = 1 ລຸ້ນ (ກົດ Enter ຂຶ້ນແຖວໃໝ່) — ວາງຈາກ Excel ຫຼື Word ໄດ້ເລີຍ
+  // ຖ້າວາງມາເປັນແຖວດຽວລ້ວນໆ ຈຶ່ງຄ່ອຍລອງແຍກດ້ວຍ ຈຸດ / ຈຸດພາກ / ຈຸດເມັດ ໃຫ້
+  const parts = /[\n\r]/.test(raw) ? raw.split(/[\n\r]+/) : raw.split(/[\t,;|•·]+|\.(?=\s)|\s\.\s/);
+  return parts
+    // ຕັດເລກລຳດັບ ຫຼື ຈຸດນຳໜ້າອອກ ເຊັ່ນ "1. Y17" ຫຼື "- Y17" ຫຼື "• Y17"
+    .map(t => String(t).replace(/^\s*(?:[-*•·–—]+|\d{1,3}\s*[.)])\s+/, ""))
     .map(t => t.replace(/\s+/g, " ").trim())
     .filter(Boolean);
 }
@@ -2184,11 +2191,14 @@ async function applyModelPaste(button) {
   $("#modelPasteInput").value = "";
   renderModelList();
   const r = $("#modelPasteResult");
+  const dup = names.length - (matched.length + toAdd.length);
   if (r) r.innerHTML = [
-    matched.length ? `<span class="ok">ຕິກໃຫ້ແລ້ວ ${matched.length} ລຸ້ນ (ມີຢູ່ກ່ອນ)</span>` : "",
-    added.length ? `<span class="ok">ເພີ່ມໃໝ່ ${added.length} ລຸ້ນ ແລະ ຕິກໃຫ້ແລ້ວ: ${added.map(a => escapeHtml(a.name)).join(" · ")}</span>` : ""
+    `<span class="ok"><b>✓ ຕິກໃຫ້ແລ້ວ ${matched.length + added.length} ລຸ້ນ</b> (ຈາກທີ່ວາງມາ ${names.length} ແຖວ)</span>`,
+    matched.length ? `<span class="muted">• ມີຢູ່ກ່ອນແລ້ວ ${matched.length} ລຸ້ນ — ຕິກເອົາ ບໍ່ໄດ້ສ້າງຊ້ຳ</span>` : "",
+    added.length ? `<span class="ok">• ເພີ່ມໃໝ່ ${added.length} ລຸ້ນ: ${added.map(a => escapeHtml(a.name)).join(" · ")}</span>` : "",
+    dup > 0 ? `<span class="muted">• ວາງຊ້ຳກັນເອງ ${dup} ແຖວ — ຂ້າມໃຫ້</span>` : ""
   ].filter(Boolean).join("<br>");
-  toast(`ຕິກໃຫ້ ${matched.length + added.length} ລຸ້ນ${added.length ? ` · ເພີ່ມໃໝ່ ${added.length}` : ""}`);
+  toast(`✓ ຕິກໃຫ້ ${matched.length + added.length} ລຸ້ນ${added.length ? ` · ເພີ່ມໃໝ່ ${added.length}` : ""}`);
 }
 
 function leavesUnder(id) {
@@ -2258,12 +2268,13 @@ function renderModelList() {
       <div class="picker-crumb">${crumb.join("")}</div>
       <div class="picker-actions">
         ${currentId ? `<button type="button" class="small-button" data-model-all="${allLeaves.map(m => m.id).join(",")}">${allOn ? "ເອົາອອກໝົດ" : `ເລືອກໝົດ (${allLeaves.length})`}</button>` : ""}
-        ${currentId ? `<button type="button" class="small-button" id="modelPasteToggle">📋 ວາງລາຍຊື່ລຸ້ນ</button>` : ""}
+        ${currentId ? `<button type="button" class="small-button" id="modelPasteToggle">📋 ວາງລາຍຊື່ລຸ້ນທັງໝົດ</button>` : ""}
       </div>
     </div>
     ${currentId ? `<div id="modelPasteBox" class="paste-box${modelPasteOpen ? "" : " hidden"}">
-      <p class="add-here">ວາງລາຍຊື່ລຸ້ນລົງໃນ <b>${escapeHtml(catById(currentId)?.name || "")}</b> — ມີແລ້ວຈະ<b>ຕິກໃຫ້</b> · ຍັງບໍ່ມີຈະ<b>ເພີ່ມໃຫ້ ແລ້ວຕິກໃຫ້</b></p>
-      <textarea id="modelPasteInput" rows="4" placeholder="ຂຶ້ນແຖວໃໝ່ 1 ລຸ້ນ (ວາງຈາກ Excel ໄດ້ເລີຍ) ຫຼື ຂັ້ນດ້ວຍ ຈຸດ (.) · ຈຸດເມັດ (•)&#10;ຕົວຢ່າງ:&#10;A5&#10;A5 5G&#10;A16"></textarea>
+      <p class="add-here">ວາງລາຍຊື່ລຸ້ນລົງໃນ <b>${escapeHtml(catById(currentId)?.name || "")}</b><br>
+        <span class="muted">ລຸ້ນທີ່<b>ມີແລ້ວ</b> → ຕິກໃຫ້ · ລຸ້ນທີ່<b>ຍັງບໍ່ມີ</b> → ເພີ່ມເຂົ້າໝວດນີ້ ແລ້ວຕິກໃຫ້ · ວາງຊ້ຳກໍບໍ່ເປັນຫຍັງ</span></p>
+      <textarea id="modelPasteInput" rows="6" placeholder="1 ແຖວ = 1 ລຸ້ນ (ກົດ Enter ຂຶ້ນແຖວໃໝ່) — ວາງຈາກ Excel ຫຼື Word ໄດ້ເລີຍ&#10;ຕົວຢ່າງ:&#10;Y17&#10;Y27&#10;Y36 5G"></textarea>
       <div class="paste-actions">
         <button type="button" class="primary-button" id="modelPasteApply">✓ ກວດ ແລະ ຕິກໃຫ້</button>
         <button type="button" class="secondary-button" id="modelPasteCancel">ຍົກເລີກ</button>
@@ -3286,7 +3297,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("#catMgrAddApply").addEventListener("click", async event => {
     const text = $("#catMgrInput").value || "";
-    const names = text.split(/[\n\r\t.,;|/]+/).map(t => t.trim()).filter(Boolean);
+    const names = splitModelText(text);
     if (!names.length) return toast("ຍັງບໍ່ໄດ້ໃສ່ຊື່");
     const parentId = catMgrPath.length ? Number(catMgrPath[catMgrPath.length - 1]) : null;
     const icon = parentId ? "" : ($("#catMgrIcon").value || "").trim();
