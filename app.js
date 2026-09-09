@@ -206,7 +206,7 @@ function orderTotal(order) { return order.items.reduce((sum, item) => sum + item
 // Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
 // ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
 // ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
-const APP_VERSION = "29 · ວາງລາຍຊື່ລຸ້ນ 1 ແຖວ 1 ລຸ້ນ";
+const APP_VERSION = "30 · ແກ້ຂໍ້ມູນຂາດ 1000 ແຖວ + ວາງລຸ້ນບໍ່ພັງ";
 let uploadSeq = 0;
 function safeFileName(file) {
   const raw = String(file?.name || "");
@@ -2155,50 +2155,82 @@ async function applyModelPaste(button) {
   const names = splitModelText($("#modelPasteInput")?.value);
   if (!names.length) return toast("ຍັງບໍ່ໄດ້ວາງລາຍຊື່ລຸ້ນ");
 
-  // ຂອງທີ່ມີຢູ່ແລ້ວໃນໝວດນີ້ (ນັບທຸກຊັ້ນຍ່ອຍ) — ທຽບແບບບໍ່ສົນຊ່ອງວ່າງ/ຕົວພິມ
-  const pool = new Map();
-  leavesUnder(currentId).forEach(m => pool.set(normModel(m.name), m));
-  childrenOf(currentId).forEach(m => { if (!pool.has(normModel(m.name))) pool.set(normModel(m.name), m); });
+  // ຊື່ຂອງໝວດແມ່ ແລະ ຊັ້ນເທິງ — ໃຊ້ຕັດຄຳຊ້ຳນຳໜ້າ
+  // ຢູ່ໃນໂຟນເດີ "vivo" ແລ້ວວາງ "vivo Y04" → ຖືວ່າແມ່ນລຸ້ນ "Y04" ອັນດຽວກັນ
+  const ancestorKeys = categoryPath(currentId).map(c => normModel(c.name)).filter(Boolean);
+  const keysOf = (name) => {
+    const base = normModel(name);
+    const keys = new Set();
+    if (!base) return keys;
+    keys.add(base);
+    ancestorKeys.forEach(w => { if (w && base.startsWith(w) && base.length > w.length) keys.add(base.slice(w.length)); });
+    return keys;
+  };
+
+  // ດັດຊະນີຂອງທີ່ມີຢູ່ແລ້ວ — ໃສ່ທັງຊື່ເຕັມ ແລະ ຊື່ທີ່ຕັດຄຳນຳໜ້າອອກ
+  const buildPool = () => {
+    const pool = new Map();
+    const add = (m) => keysOf(m.name).forEach(k => { if (!pool.has(k)) pool.set(k, m); });
+    leavesUnder(currentId).forEach(add);
+    childrenOf(currentId).forEach(add);
+    return pool;
+  };
+  let pool = buildPool();
+  const findIn = (p, name) => { for (const k of keysOf(name)) { const hit = p.get(k); if (hit) return hit; } return null; };
 
   const matched = [], toAdd = [], seen = new Set();
   names.forEach(name => {
-    const key = normModel(name);
-    if (!key || seen.has(key)) return;
-    seen.add(key);
-    const hit = pool.get(key);
+    const base = normModel(name);
+    if (!base || seen.has(base)) return;
+    seen.add(base);
+    const hit = findIn(pool, name);
     if (hit) matched.push(hit); else toAdd.push(name);
   });
 
-  let added = [];
+  let added = [], failed = [];
   if (toAdd.length) {
-    if (button) button.disabled = true;
+    if (button) { button.disabled = true; button.textContent = `ກຳລັງເພີ່ມ ${toAdd.length} ລຸ້ນ...`; }
     const base = (childrenOf(currentId).length + 1) * 10;
     const rows = toAdd.map((name, i) => ({ name, parentId: currentId, icon: "", sort: base + (i + 1) * 10 }));
-    try {
-      const { data: inserted, error } = await supabase.from("categories").insert(rows).select();
-      if (error) throw error;
+    // ລອງໃສ່ທີ່ດຽວກ່ອນ (ໄວ) — ຖ້າຕິດຊື່ຊ້ຳ ຄ່ອຍໃສ່ເທື່ອລະອັນ ແລ້ວຂ້າມອັນທີ່ຊ້ຳ
+    const { data: inserted, error } = await supabase.from("categories").insert(rows).select();
+    if (!error) {
       added = inserted || [];
-      await refreshCategories();
-    } catch (error) {
-      if (button) button.disabled = false;
-      result.innerHTML = `<span class="miss">ເພີ່ມລຸ້ນໃໝ່ບໍ່ໄດ້: ${escapeHtml(error.message || "")}</span>`;
-      return toast("ເພີ່ມລຸ້ນໃໝ່ບໍ່ໄດ້");
+    } else {
+      console.warn("ໃສ່ເປັນຊຸດບໍ່ໄດ້ ລອງເທື່ອລະອັນ:", error.message);
+      for (const row of rows) {
+        const one = await supabase.from("categories").insert(row).select();
+        if (one.error) {
+          // ຊື່ຊ້ຳ (23505) = ມີຢູ່ແລ້ວໃນຖານ ພຽງແຕ່ເຄື່ອງເຮົາຍັງບໍ່ທັນເຫັນ — ຂ້າມ ບໍ່ຖືເປັນຄວາມຜິດພາດ
+          if (one.error.code !== "23505") failed.push(row.name);
+        } else if (one.data?.[0]) added.push(one.data[0]);
+      }
     }
-    if (button) button.disabled = false;
+    await refreshCategories();
+    if (button) { button.disabled = false; button.textContent = "✓ ກວດ ແລະ ຕິກໃຫ້"; }
   }
 
-  [...matched, ...added].forEach(m => { if (m?.id != null) selectedModels.add(String(m.id)); });
+  // ດຶງຂໍ້ມູນໃໝ່ແລ້ວ ຄົ້ນຫາອີກຮອບ — ຮັບປະກັນວ່າ "ທຸກແຖວທີ່ວາງມາ" ຖືກຕິກ
+  pool = buildPool();
+  let ticked = 0, missing = [];
+  names.forEach(name => {
+    const hit = findIn(pool, name);
+    if (hit?.id != null) { selectedModels.add(String(hit.id)); ticked++; }
+    else missing.push(name);
+  });
+
   $("#modelPasteInput").value = "";
   renderModelList();
   const r = $("#modelPasteResult");
-  const dup = names.length - (matched.length + toAdd.length);
+  const uniq = seen.size;
   if (r) r.innerHTML = [
-    `<span class="ok"><b>✓ ຕິກໃຫ້ແລ້ວ ${matched.length + added.length} ລຸ້ນ</b> (ຈາກທີ່ວາງມາ ${names.length} ແຖວ)</span>`,
+    `<span class="ok"><b>✓ ຕິກໃຫ້ແລ້ວ ${uniq - missing.length} ລຸ້ນ</b> (ວາງມາ ${names.length} ແຖວ)</span>`,
     matched.length ? `<span class="muted">• ມີຢູ່ກ່ອນແລ້ວ ${matched.length} ລຸ້ນ — ຕິກເອົາ ບໍ່ໄດ້ສ້າງຊ້ຳ</span>` : "",
     added.length ? `<span class="ok">• ເພີ່ມໃໝ່ ${added.length} ລຸ້ນ: ${added.map(a => escapeHtml(a.name)).join(" · ")}</span>` : "",
-    dup > 0 ? `<span class="muted">• ວາງຊ້ຳກັນເອງ ${dup} ແຖວ — ຂ້າມໃຫ້</span>` : ""
+    names.length > uniq ? `<span class="muted">• ວາງຊ້ຳກັນເອງ ${names.length - uniq} ແຖວ — ຂ້າມໃຫ້</span>` : "",
+    failed.length ? `<span class="miss">• ເພີ່ມບໍ່ໄດ້ ${failed.length} ລຸ້ນ: ${failed.slice(0, 5).map(escapeHtml).join(" · ")}</span>` : ""
   ].filter(Boolean).join("<br>");
-  toast(`✓ ຕິກໃຫ້ ${matched.length + added.length} ລຸ້ນ${added.length ? ` · ເພີ່ມໃໝ່ ${added.length}` : ""}`);
+  toast(`✓ ຕິກໃຫ້ ${ticked} ລຸ້ນ${added.length ? ` · ເພີ່ມໃໝ່ ${added.length}` : ""}`);
 }
 
 function leavesUnder(id) {
@@ -2312,15 +2344,35 @@ function withTimeout(promise, ms = 12000, label = "") {
 }
 let lastFetchOk = true;
 async function fetchTable(table, orderCol) {
-  let query = supabase.from(table).select("*");
-  if (orderCol) query = query.order(orderCol, { ascending: false });
+  // ⚠ ສຳຄັນ: Supabase ສົ່ງຄືນສູງສຸດ 1000 ແຖວຕໍ່ 1 ຄຳຂໍ (ຄ່າມາດຕະຖານ PostgREST)
+  // ຮ້ານທີ່ມີໝວດ/ລຸ້ນ ຫຼາຍກວ່າ 1000 ຈະຂາດຫາຍໄປ → ລະບົບຄິດວ່າ "ຍັງບໍ່ມີ" ແລ້ວສ້າງຊ້ຳ
+  //   (ນີ້ຄືສາເຫດຂອງ error "duplicate key ... categories_name_parent_uniq")
+  // ໝາຍເຫດ: ໃຊ້ວິທີ "ໄລ່ຕາມ id" ບໍ່ໃຊ້ .range() ເພາະ browser ຕັດ header Range ຖິ້ມ
+  const PAGE = 1000;
+  const all = [];
+  const seen = new Set();
+  let lastId = null;
   try {
-    const { data: rows, error } = await withTimeout(query, 12000, table);
-    if (error) { console.error(table, error); lastFetchOk = false; showLoadError(error.message); return []; }
+    for (let guard = 0; guard < 200; guard++) {
+      let query = supabase.from(table).select("*").order("id", { ascending: true }).limit(PAGE);
+      if (lastId != null) query = query.gt("id", lastId);
+      const { data: rows, error } = await withTimeout(query, 15000, table);
+      if (error) { console.error(table, error); lastFetchOk = false; showLoadError(error.message); return all; }
+      let fresh = 0;
+      for (const row of (rows || [])) {
+        const key = String(row?.id);
+        if (seen.has(key)) continue;
+        seen.add(key); all.push(row); fresh++;
+      }
+      if (!rows || !rows.length || !fresh) break;          // ບໍ່ໄດ້ຂໍ້ມູນໃໝ່ = ຄົບແລ້ວ (ກັນວົນບໍ່ຮູ້ຈົບ)
+      lastId = rows[rows.length - 1]?.id;
+      if (lastId == null || rows.length < PAGE) break;
+    }
     lastFetchOk = true;
-    return rows;
+    if (orderCol) all.sort((a, b) => new Date(b?.[orderCol] || 0) - new Date(a?.[orderCol] || 0));
+    return all;
   } catch (err) {
-    console.error(table, err); lastFetchOk = false; showLoadError(err.message); return [];
+    console.error(table, err); lastFetchOk = false; showLoadError(err.message); return all;
   }
 }
 // ບອກຜູ້ໃຊ້ຢ່າງຊັດເຈນ ຖ້າໂຫລດຂໍ້ມູນບໍ່ໄດ້ (ບໍ່ໃຫ້ນັ່ງເບິ່ງໜ້າຈໍໝຸນຢູ່ຊື່ໆ)
