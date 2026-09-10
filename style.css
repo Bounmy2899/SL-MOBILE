@@ -964,3 +964,40 @@
   .my-phone-pick{padding:12px;border-radius:15px}
   .mpp-head b{font-size:14.5px}
 }
+
+
+/* =====================================================================
+   ເລືອກວິທີຈ່າຍເງິນ — 3 ແບບ ບັດໃຫຍ່ ກົດງ່າຍ
+   ===================================================================== */
+.pay-choice{border:0;padding:0;margin:0;display:grid;gap:11px}
+.pay-choice legend{font-size:14px;font-weight:800;color:#34443b;margin-bottom:10px;padding:0}
+.pay-card{display:block;cursor:pointer}
+.pay-card input{position:absolute;opacity:0;width:0;height:0}
+.pc-body{display:grid;grid-template-columns:52px 1fr 30px;align-items:center;gap:13px;
+  border:2px solid var(--line);border-radius:16px;padding:15px 16px;background:#fff;
+  transition:border-color .14s,background .14s,transform .1s}
+.pay-card:hover .pc-body{border-color:#9fc3ae}
+.pay-card.on .pc-body,.pay-card input:checked + .pc-body{border-color:var(--green);background:var(--green-pale)}
+.pay-card input:focus-visible + .pc-body{outline:3px solid var(--green);outline-offset:2px}
+.pc-icon{font-size:30px;text-align:center;line-height:1}
+.pc-text b{display:block;font-size:15.5px;color:var(--ink);line-height:1.3}
+.pc-text small{display:block;margin-top:3px;font-size:12.5px;color:var(--muted);line-height:1.45}
+.pc-tick{width:28px;height:28px;border-radius:50%;border:2px solid #ccd8d0;background:#fff;
+  display:grid;place-items:center;color:transparent;font-size:15px;font-weight:900}
+.pay-card.on .pc-tick,.pay-card input:checked + .pc-body .pc-tick{
+  border-color:var(--green);background:var(--green);color:#fff}
+
+/* ເຕືອນຜູ້ຈັດການ: ອໍເດີຈ່າຍທີ່ຮ້ານ ຍັງບໍ່ໄດ້ຮັບເງິນ */
+.cash-warn{margin:9px 0 0;padding:10px 12px;border-radius:11px;background:#fff6e6;
+  border:1px solid #f0c674;color:#8a5a06;font-size:12.5px;line-height:1.55}
+.cash-done{margin:9px 0 0;padding:9px 12px;border-radius:11px;background:var(--green-pale);
+  border:1px solid var(--green);color:var(--green-dark);font-size:12.5px;font-weight:700}
+
+@media (max-width:670px){
+  .pay-choice legend{font-size:13.5px}
+  .pc-body{grid-template-columns:42px 1fr 26px;gap:10px;padding:13px 13px;border-radius:14px}
+  .pc-icon{font-size:25px}
+  .pc-text b{font-size:14.5px}
+  .pc-text small{font-size:11.5px}
+  .pc-tick{width:25px;height:25px;font-size:13px}
+}

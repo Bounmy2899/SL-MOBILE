@@ -43,7 +43,7 @@
   <link rel="preload" as="font" type="font/woff2" href="fonts/phetsarath-lao-400-normal.woff2" crossorigin />
   <link rel="preload" as="image" href="banner-640.webp" imagesrcset="banner-640.webp 640w, banner-1000.webp 1000w, banner-1290.webp 1290w" imagesizes="(max-width:670px) 100vw, (max-width:1200px) 92vw, 1170px" fetchpriority="high" />
   <link rel="preconnect" href="https://fsizqnygcklqlxuopbcc.supabase.co" crossorigin />
-  <link rel="stylesheet" href="style.css?v=30" />
+  <link rel="stylesheet" href="style.css?v=32" />
 </head>
 <body>
   <div class="app-shell">
@@ -131,12 +131,44 @@
         <form id="checkoutForm" class="form-stack">
           <p class="eyebrow">ຂັ້ນຕອນສຸດທ້າຍ</p><h2 id="checkoutTitle">ຂໍ້ມູນການສັ່ງຊື້</h2>
 
-          <fieldset class="delivery-choice">
-            <legend>ຮັບສິນຄ້າແບບໃດ?</legend>
-            <label class="big-radio"><input type="radio" name="deliveryMethod" value="pickup" checked />
-              <span><b>🏬 ຮັບເອງທີ່ຮ້ານ</b><small>ບໍ່ຕ້ອງປ້ອນຫຍັງເພີ່ມ · ຈ່າຍຕອນຮັບເຄື່ອງ</small></span></label>
-            <label class="big-radio"><input type="radio" name="deliveryMethod" value="ship" />
-              <span><b>🚚 ໃຫ້ຈັດສົ່ງໃຫ້</b><small>ເລືອກບໍລິສັດຂົນສົ່ງ ແລະ ວິທີຈ່າຍເງິນ</small></span></label>
+          <fieldset class="pay-choice">
+            <legend>ຢາກຮັບເຄື່ອງ ແລະ ຈ່າຍເງິນແບບໃດ?</legend>
+
+            <label class="pay-card">
+              <input type="radio" name="payWay" value="shopCash" checked />
+              <span class="pc-body">
+                <span class="pc-icon">🏪</span>
+                <span class="pc-text">
+                  <b>ຮັບເອງທີ່ຮ້ານ · ຈ່າຍທີ່ຮ້ານ</b>
+                  <small>ບໍ່ຕ້ອງໂອນເງິນ · ມາເບິ່ງເຄື່ອງກ່ອນ ພໍໃຈຄ່ອຍຈ່າຍ</small>
+                </span>
+                <span class="pc-tick">✓</span>
+              </span>
+            </label>
+
+            <label class="pay-card">
+              <input type="radio" name="payWay" value="shopTransfer" />
+              <span class="pc-body">
+                <span class="pc-icon">💳</span>
+                <span class="pc-text">
+                  <b>ໂອນເງິນກ່ອນ · ຮັບເອງທີ່ຮ້ານ</b>
+                  <small>ໂອນຈອງໄວ້ກ່ອນ ບໍ່ໃຫ້ເຄື່ອງໝົດ · ມາຮັບຕອນໃດກໍໄດ້</small>
+                </span>
+                <span class="pc-tick">✓</span>
+              </span>
+            </label>
+
+            <label class="pay-card">
+              <input type="radio" name="payWay" value="shipTransfer" />
+              <span class="pc-body">
+                <span class="pc-icon">🚚</span>
+                <span class="pc-text">
+                  <b>ໂອນເງິນກ່ອນ · ຝາກລົດສົ່ງໃຫ້</b>
+                  <small>ສົ່ງທົ່ວປະເທດ · ເລືອກບໍລິສັດຂົນສົ່ງໄດ້</small>
+                </span>
+                <span class="pc-tick">✓</span>
+              </span>
+            </label>
           </fieldset>
 
           <div class="two-fields">
@@ -152,12 +184,20 @@
           </div>
 
           <label>ໝາຍເຫດ <span class="optional">(ບໍ່ຕ້ອງໃສ່ກໍໄດ້)</span><textarea name="note" rows="2" placeholder="ເຊັ່ນ ເວລາສະດວກຮັບເຄື່ອງ..."></textarea></label>
-          <div class="pay-first-note">
-            <b>💳 ຕ້ອງໂອນເງິນກ່ອນທຸກເທື່ອ</b>
-            <p>ກົດຢືນຢັນແລ້ວ ຈະຂຶ້ນ QR ໃຫ້ໂອນ ແລະ ອັບໃບໂອນ ຈຶ່ງຈະບັນທຶກອໍເດີ</p>
-            <p class="alt">ບໍ່ຢາກໂອນກ່ອນ? ແຄັບຮູບເຄສທີ່ຕ້ອງການ ແລ້ວທັກແຊັດເພຈຮ້ານໂດຍກົງ ວ່າຈະມາຮັບເຄື່ອງ ແລະ ຈ່າຍເງິນທີ່ຮ້ານ</p>
+
+          <div class="pay-first-note" id="payNoteCash">
+            <b>🏪 ມາຮັບ ແລະ ຈ່າຍທີ່ຮ້ານ</b>
+            <p>ກົດຢືນຢັນແລ້ວ ຮ້ານຈະຈອງເຄື່ອງໄວ້ໃຫ້ · ບໍ່ຕ້ອງໂອນເງິນ</p>
+            <p class="alt">ຮ້ານຈະໂທຫາທ່ານ ເມື່ອເຄື່ອງພ້ອມໃຫ້ມາຮັບ</p>
           </div>
-          <button class="primary-button full" type="submit">ຢືນຢັນສັ່ງຊື້ ແລະ ໄປໜ້າໂອນເງິນ</button>
+
+          <div class="pay-first-note hidden" id="payNoteTransfer">
+            <b>💳 ໂອນເງິນກ່ອນ</b>
+            <p>ກົດຢືນຢັນແລ້ວ ຈະຂຶ້ນ QR ໃຫ້ໂອນ ແລະ ອັບໃບໂອນ ຈຶ່ງຈະບັນທຶກອໍເດີ</p>
+            <p class="alt">ບໍ່ຢາກໂອນກ່ອນ? ເລືອກ “ຮັບເອງທີ່ຮ້ານ · ຈ່າຍທີ່ຮ້ານ” ຂ້າງເທິງໄດ້ເລີຍ</p>
+          </div>
+
+          <button class="primary-button full" type="submit" id="checkoutSubmit">ຢືນຢັນສັ່ງຊື້</button>
         </form>
         <aside class="order-summary"><p class="eyebrow">ກວດສອບ</p><h3>ລາຍການສັ່ງຊື້</h3><div id="checkoutItems"></div><div class="total-row"><span>ລວມຈ່າຍ</span><strong id="checkoutTotal">0 ₭</strong></div></aside>
       </div>
@@ -173,7 +213,7 @@
 
   <div id="imageViewer" class="image-viewer hidden" role="dialog" aria-modal="true" aria-label="ຮູບຕົ້ນສະບັບ">
     <button class="image-viewer-close" type="button" aria-label="ປິດຮູບ">×</button>
-    <img id="imageViewerImg" src="" alt="" />
+    <img id="imageViewerImg" alt="" />
   </div>
 
   <div id="transferModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="transferTitle">
@@ -523,7 +563,7 @@
   </section>
 
   <div id="toast" class="toast hidden" role="status"></div>
-  <script src="supabase-js.js?v=30" defer></script>
-  <script type="module" src="app.js?v=30"></script>
+  <script src="supabase-js.js?v=32" defer></script>
+  <script type="module" src="app.js?v=32"></script>
 </body>
 </html>

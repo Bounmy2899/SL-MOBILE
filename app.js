@@ -206,7 +206,7 @@ function orderTotal(order) { return order.items.reduce((sum, item) => sum + item
 // Supabase Storage ຮັບສະເພາະຊື່ໄຟລ໌ທີ່ເປັນຕົວອັກສອນອັງກິດ/ຕົວເລກ —
 // ຖ້າຊື່ຮູບເປັນພາສາລາວ/ໄທ ຈະຖືກປະຕິເສດວ່າ "Invalid key".
 // ຈຶ່ງສ້າງຊື່ໃໝ່ໃຫ້ປອດໄພສະເໝີ ໂດຍເກັບແຕ່ນາມສະກຸນໄຟລ໌ໄວ້.
-const APP_VERSION = "30 · ແກ້ຂໍ້ມູນຂາດ 1000 ແຖວ + ວາງລຸ້ນບໍ່ພັງ";
+const APP_VERSION = "32 · ຈ່າຍທີ່ຮ້ານ / ໂອນ / ຝາກສົ່ງ";
 let uploadSeq = 0;
 function safeFileName(file) {
   const raw = String(file?.name || "");
@@ -821,7 +821,7 @@ function openImageViewer(src) {
 }
 function closeImageViewer() {
   $("#imageViewer").classList.add("hidden");
-  $("#imageViewerImg").src = "";
+  $("#imageViewerImg").removeAttribute("src");
   document.body.style.overflow = "";
 }
 
@@ -939,13 +939,27 @@ async function saveCouriers(list) {
   couriers = list; renderCourierList(); renderCourierSelect(); return true;
 }
 
-// ສະຫຼັບຊ່ອງຕາມວິທີຮັບເຄື່ອງ — ຮັບເອງທີ່ຮ້ານ = ປ້ອນແຕ່ຊື່ ແລະ ເບີໂທ
+// ວິທີຈ່າຍ/ຮັບເຄື່ອງ ມີ 3 ແບບ:
+//   shopCash     = ຮັບເອງທີ່ຮ້ານ · ຈ່າຍທີ່ຮ້ານ (ບໍ່ຕ້ອງໂອນ)
+//   shopTransfer = ໂອນເງິນກ່ອນ · ຮັບເອງທີ່ຮ້ານ
+//   shipTransfer = ໂອນເງິນກ່ອນ · ຝາກລົດສົ່ງ
+const payWay = () => $("input[name=payWay]:checked")?.value || "shopCash";
+const needTransfer = (way = payWay()) => way !== "shopCash";
+const isShipWay = (way = payWay()) => way === "shipTransfer";
+
 function toggleDeliveryFields() {
-  const method = $("input[name=deliveryMethod]:checked")?.value || "pickup";
-  const ship = method === "ship";
+  const way = payWay();
+  const ship = isShipWay(way);
   $("#shipFields").classList.toggle("hidden", !ship);
   $$("#shipFields input, #shipFields select, #shipFields textarea").forEach(el => { el.disabled = !ship; });
   const courier = $("#courierSelect"); if (courier) courier.required = ship && couriers.length > 0;
+  // ໝາຍເຫດ ແລະ ຂໍ້ຄວາມປຸ່ມ ປ່ຽນຕາມວິທີທີ່ເລືອກ
+  $("#payNoteCash")?.classList.toggle("hidden", needTransfer(way));
+  $("#payNoteTransfer")?.classList.toggle("hidden", !needTransfer(way));
+  const btn = $("#checkoutSubmit");
+  if (btn) btn.textContent = needTransfer(way) ? "ຢືນຢັນ ແລະ ໄປໜ້າໂອນເງິນ" : "ຢືນຢັນສັ່ງຊື້ (ຈ່າຍທີ່ຮ້ານ)";
+  // ໄຮໄລ້ບັດທີ່ເລືອກ
+  $$(".pay-card").forEach(c => c.classList.toggle("on", c.querySelector("input")?.checked));
 }
 
 
@@ -961,7 +975,7 @@ function statusLabel(status) {
     accepted: "ຮັບອໍເດີແລ້ວ", inbound: "ສິນຄ້າກຳລັງມາຮ້ານ"   // ສະຖານະເກົ່າ ເກັບໄວ້ໃຫ້ອໍເດີເກົ່າອ່ານໄດ້
   }[status] || status;
 }
-function paymentLabel(method) { return { cod: "ເກັບເງິນປາຍທາງ", transfer: "ໂອນເງິນ", pickup: "ຈ່າຍຕອນຮັບທີ່ຮ້ານ" }[method] || method; }
+function paymentLabel(method) { return { cod: "ເກັບເງິນປາຍທາງ", transfer: "ໂອນເງິນກ່ອນ", cash: "ຈ່າຍທີ່ຮ້ານ", pickup: "ຈ່າຍຕອນຮັບທີ່ຮ້ານ" }[method] || method; }
 
 // ---------- ຕົວຊ່ວຍເລື່ອງສະຕັອກ / ອໍເດີ ----------
 const productById = (id) => data.products.find(product => String(product.id) === String(id));
@@ -1671,6 +1685,10 @@ function orderCard(order) {
         <p>ຂົນສົ່ງ: ${escapeHtml(order.customer.transportBranch || "ບໍ່ໄດ້ລະບຸ")}<br>ຈ່າຍ: ${paymentLabel(order.paymentMethod)}</p>
         ${order.customer.note ? `<p>ໝາຍເຫດ: ${escapeHtml(order.customer.note)}</p>` : ""}
         ${order.receipt ? `<p class="pay-warn">⚠ ລູກຄ້າແຈ້ງໂອນແລ້ວ — <b>ກວດຍອດເງິນໃນບັນຊີກ່ອນສົ່ງ</b></p><button class="receipt-button" data-view-receipt="${escapeHtml(order.id)}">ເບິ່ງໃບໂອນ</button><img id="receipt-${escapeHtml(order.id)}" class="receipt-img hidden" src="${escapeHtml(order.receipt)}" alt="ໃບໂອນ">` : ""}
+        ${order.paymentMethod === "cash" && order.status !== "complete" && order.status !== "cancelled"
+          ? `<p class="cash-warn">🏪 <b>ຈ່າຍທີ່ຮ້ານ — ຍັງບໍ່ໄດ້ຮັບເງິນ</b><br>ຢ່າລືມເກັບເງິນ ${money(orderTotal(order))} ຕອນລູກຄ້າມາຮັບເຄື່ອງ</p>` : ""}
+        ${order.paymentMethod === "cash" && order.status === "complete"
+          ? `<p class="cash-done">✓ ຈ່າຍທີ່ຮ້ານ · ຮັບເງິນ ${money(orderTotal(order))} ແລ້ວ</p>` : ""}
       </div>
       <div><h4>ສິນຄ້າທີ່ສັ່ງ</h4><div class="order-items-mini">${itemsHtml}</div></div>
     </div>
@@ -2192,19 +2210,31 @@ async function applyModelPaste(button) {
     if (button) { button.disabled = true; button.textContent = `ກຳລັງເພີ່ມ ${toAdd.length} ລຸ້ນ...`; }
     const base = (childrenOf(currentId).length + 1) * 10;
     const rows = toAdd.map((name, i) => ({ name, parentId: currentId, icon: "", sort: base + (i + 1) * 10 }));
-    // ລອງໃສ່ທີ່ດຽວກ່ອນ (ໄວ) — ຖ້າຕິດຊື່ຊ້ຳ ຄ່ອຍໃສ່ເທື່ອລະອັນ ແລ້ວຂ້າມອັນທີ່ຊ້ຳ
-    const { data: inserted, error } = await supabase.from("categories").insert(rows).select();
-    if (!error) {
-      added = inserted || [];
-    } else {
-      console.warn("ໃສ່ເປັນຊຸດບໍ່ໄດ້ ລອງເທື່ອລະອັນ:", error.message);
-      for (const row of rows) {
-        const one = await supabase.from("categories").insert(row).select();
-        if (one.error) {
-          // ຊື່ຊ້ຳ (23505) = ມີຢູ່ແລ້ວໃນຖານ ພຽງແຕ່ເຄື່ອງເຮົາຍັງບໍ່ທັນເຫັນ — ຂ້າມ ບໍ່ຖືເປັນຄວາມຜິດພາດ
-          if (one.error.code !== "23505") failed.push(row.name);
-        } else if (one.data?.[0]) added.push(one.data[0]);
+    // ແບ່ງເປັນຊຸດລະ 200 — ວາງເປັນພັນແຖວກໍໄດ້ ແລະ ຖ້າຊຸດໃດຕິດຊື່ຊ້ຳ
+    // ກໍລອງໃໝ່ສະເພາະຊຸດນັ້ນ ບໍ່ຕ້ອງລອງເທື່ອລະອັນທັງໝົດ
+    const CHUNK = 200;
+    const chunks = [];
+    for (let i = 0; i < rows.length; i += CHUNK) chunks.push(rows.slice(i, i + CHUNK));
+    // ຖ້າຊຸດໃດຖືກປະຕິເສດ (ມີຊື່ຊ້ຳປົນ) ໃຫ້ຜ່າຄີ່ງແລ້ວລອງໃໝ່ ແທນທີ່ຈະໃສ່ເທື່ອລະອັນ
+    // ວາງ 1000 ແຖວທີ່ມີຊ້ຳ 3 ອັນ: ຜ່າຄີ່ງ ~40 ຄຳຂໍ · ເທື່ອລະອັນ ~400 ຄຳຂໍ
+    const insertSmart = async (list) => {
+      if (!list.length) return;
+      const { data: inserted, error } = await supabase.from("categories").insert(list).select();
+      if (!error) { added.push(...(inserted || [])); return; }
+      if (list.length === 1) {
+        // 23505 = ຊື່ຊ້ຳ (ມີຢູ່ໃນຖານແລ້ວ) — ຂ້າມ ບໍ່ຖືເປັນຄວາມຜິດພາດ
+        if (error.code !== "23505") failed.push(list[0].name);
+        return;
       }
+      const half = Math.ceil(list.length / 2);
+      await insertSmart(list.slice(0, half));
+      await insertSmart(list.slice(half));
+    };
+    let doneRows = 0;
+    for (const chunk of chunks) {
+      await insertSmart(chunk);
+      doneRows += chunk.length;
+      if (button && chunks.length > 1) button.textContent = `ກຳລັງເພີ່ມ ${doneRows}/${rows.length} ລຸ້ນ...`;
     }
     await refreshCategories();
     if (button) { button.disabled = false; button.textContent = "✓ ກວດ ແລະ ຕິກໃຫ້"; }
@@ -2226,7 +2256,7 @@ async function applyModelPaste(button) {
   if (r) r.innerHTML = [
     `<span class="ok"><b>✓ ຕິກໃຫ້ແລ້ວ ${uniq - missing.length} ລຸ້ນ</b> (ວາງມາ ${names.length} ແຖວ)</span>`,
     matched.length ? `<span class="muted">• ມີຢູ່ກ່ອນແລ້ວ ${matched.length} ລຸ້ນ — ຕິກເອົາ ບໍ່ໄດ້ສ້າງຊ້ຳ</span>` : "",
-    added.length ? `<span class="ok">• ເພີ່ມໃໝ່ ${added.length} ລຸ້ນ: ${added.map(a => escapeHtml(a.name)).join(" · ")}</span>` : "",
+    added.length ? `<span class="ok">• ເພີ່ມໃໝ່ ${added.length} ລຸ້ນ: ${added.slice(0, 15).map(a => escapeHtml(a.name)).join(" · ")}${added.length > 15 ? ` … ແລະ ອີກ ${added.length - 15} ລຸ້ນ` : ""}</span>` : "",
     names.length > uniq ? `<span class="muted">• ວາງຊ້ຳກັນເອງ ${names.length - uniq} ແຖວ — ຂ້າມໃຫ້</span>` : "",
     failed.length ? `<span class="miss">• ເພີ່ມບໍ່ໄດ້ ${failed.length} ລຸ້ນ: ${failed.slice(0, 5).map(escapeHtml).join(" · ")}</span>` : ""
   ].filter(Boolean).join("<br>");
@@ -2556,9 +2586,10 @@ async function createOrderFromForm(form) {
   const lines = validCart(); if (!lines.length) return;
   const values = new FormData(form);
   const id = `OD-${String(Date.now()).slice(-7)}`;
-  const method = values.get("deliveryMethod") || "pickup";
-  const isShip = method === "ship";
-  const payment = "transfer";   // ບັງຄັບໂອນເງິນກ່ອນທຸກເທື່ອ ບໍ່ວ່າຮັບເອງ ຫຼື ຈັດສົ່ງ
+  const way = values.get("payWay") || "shopCash";
+  const isShip = isShipWay(way);
+  const method = isShip ? "ship" : "pickup";
+  const payment = needTransfer(way) ? "transfer" : "cash";   // cash = ຈ່າຍທີ່ຮ້ານ
 
   if (isShip && couriers.length && !values.get("courier")) { toast("ກະລຸນາເລືອກບໍລິສັດຂົນສົ່ງ"); return; }
 
@@ -2571,6 +2602,7 @@ async function createOrderFromForm(form) {
       address: isShip ? (values.get("address") || "") : "",
       transportBranch: isShip ? (values.get("courier") || "") : "",
       deliveryMethod: method,
+      payWay: way,
       note: values.get("note") || ""
     },
     paymentMethod: payment,
@@ -2582,8 +2614,23 @@ async function createOrderFromForm(form) {
   };
   const total = lines.reduce((sum, l) => sum + l.product.price * l.quantity, 0);
 
+  // ── ຈ່າຍທີ່ຮ້ານ: ບັນທຶກອໍເດີເລີຍ ບໍ່ຕ້ອງໂອນ ບໍ່ຕ້ອງອັບໃບໂອນ ──
+  if (!needTransfer(way)) {
+    const { error } = await supabase.from("orders").insert(order);
+    if (error) { console.error(error); toast("ສັ່ງຊື້ບໍ່ສຳເລັດ: " + (error.message || "")); return; }
+    cart = []; saveCart(); renderCart();
+    closeLayers();
+    $("#successText").innerHTML = `ອໍເດີ <b>${escapeHtml(order.id)}</b> · ຍອດ <b>${money(total)}</b><br>
+      ຮ້ານຈະຈອງເຄື່ອງໄວ້ໃຫ້ ແລະ ໂທຫາທ່ານເມື່ອພ້ອມ<br>
+      <b>ມາຮັບເຄື່ອງ ແລະ ຈ່າຍເງິນທີ່ຮ້ານໄດ້ເລີຍ</b>`;
+    openLayer("#successModal");
+    await refreshOrders();
+    toast("✓ ສັ່ງຊື້ສຳເລັດ · ຈ່າຍທີ່ຮ້ານຕອນມາຮັບເຄື່ອງ");
+    return;
+  }
+
   {
-    // ຍັງບໍ່ບັນທຶກອໍເດີເທື່ອ — ຕ້ອງໂອນ ແລະ ສົ່ງໃບໂອນກ່ອນສະເໝີ
+    // ໂອນເງິນກ່ອນ — ຍັງບໍ່ບັນທຶກອໍເດີເທື່ອ ຕ້ອງສົ່ງໃບໂອນກ່ອນ
     pendingTransfer = { order, total };
     closeLayers();
     $("#transferOrderNo").innerHTML = `ຍອດທີ່ຕ້ອງໂອນ <b>${money(total)}</b> · ອໍເດີຈະຖືກບັນທຶກຫຼັງສົ່ງໃບໂອນ`;
@@ -3163,7 +3210,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ---- ຈັດການໝວດສິນຄ້າ (ເພີ່ມ / ແກ້ຊື່ / ລຶບ / ໃສ່ຮູບ) ----
   // ---- ຟອມສັ່ງຊື້: ສະຫຼັບຊ່ອງຕາມວິທີຮັບເຄື່ອງ ----
-  $$("input[name=deliveryMethod]").forEach(r => r.addEventListener("change", toggleDeliveryFields));
+  $$("input[name=payWay]").forEach(r => r.addEventListener("change", toggleDeliveryFields));
   toggleDeliveryFields();
 
   // ---- ຜູກສີໃສ່ຮູບ ໃນຟອມສິນຄ້າ ----
@@ -3389,24 +3436,97 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // ---- ສຳຮອງ / ນຳເຂົ້າຂໍ້ມູນ ----
-  $("#exportData").addEventListener("click", () => {
-    const exportShape = { profile: data.profile, payment: data.payment, categories: data.categories, products: data.products, orders: data.orders, expenses: data.expenses };
-    const blob = new Blob([JSON.stringify(exportShape, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `phonemani-backup-${new Date().toISOString().slice(0,10)}.json`; link.click(); URL.revokeObjectURL(url);
+  // ---- ສົ່ງອອກ: ເອົາທຸກຢ່າງ ລວມທັງບັນຊີ ຊັບສິນ ພະນັກງານ ໜີ້ສິນ ແລະ ການຕັ້ງຄ່າ ----
+  $("#exportData").addEventListener("click", async () => {
+    const btn = $("#exportData"); btn.disabled = true; btn.textContent = "ກຳລັງລວບລວມ...";
+    try {
+      // ດຶງສົດຈາກຖານຂໍ້ມູນ ເພື່ອໃຫ້ໄດ້ຄົບທຸກແຖວ (ບໍ່ເອົາຈາກໜ້າຈໍ)
+      const [categories, products, orders, expenses, ledger, assets, employees, debts] = await Promise.all([
+        fetchTable("categories"), fetchTable("products"), fetchTable("orders"), fetchTable("expenses"),
+        fetchTable("ledger"), fetchTable("assets"), fetchTable("employees"), fetchTable("debts")
+      ]);
+      const { data: st } = await supabase.from("settings").select("*").eq("id", "store").maybeSingle();
+      const shape = {
+        meta: { app: "SL-Mobile", version: APP_VERSION, exportedAt: new Date().toISOString(),
+                counts: { categories: categories.length, products: products.length, orders: orders.length,
+                          ledger: ledger.length, assets: assets.length, employees: employees.length, debts: debts.length } },
+        settings: st || null,
+        profile: data.profile, payment: data.payment,
+        couriers, colorOptions, pricing: priceRule,
+        categories, products, orders, expenses, ledger, assets, employees, debts
+      };
+      const blob = new Blob([JSON.stringify(shape, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob); const link = document.createElement("a");
+      link.href = url; link.download = `sl-mobile-backup-${today()}.json`;
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 3000);
+      const n = shape.meta.counts;
+      toast(`✓ ດາວໂຫລດແລ້ວ · ໝວດ ${n.categories} · ສິນຄ້າ ${n.products} · ອໍເດີ ${n.orders}`);
+      const box = $("#exportInfo");
+      if (box) box.innerHTML = `<span class="save-flag ok">✓ ສຳຮອງແລ້ວ: ໝວດ/ລຸ້ນ ${n.categories} · ສິນຄ້າ ${n.products} · ອໍເດີ ${n.orders} · ບັນຊີ ${n.ledger} ແຖວ</span>`;
+    } catch (err) { console.error(err); toast("ດາວໂຫລດບໍ່ສຳເລັດ: " + (err.message || "")); }
+    finally { btn.disabled = false; btn.textContent = "⬇ ດາວໂຫຼດຂໍ້ມູນທັງໝົດ"; }
   });
-  // ນຳເຂົ້າ: upsert ຂຽນທັບແຖວທີ່ id ຕົງກັນໃນຖານຂໍ້ມູນອອນລາຍ (ບໍ່ລຶບແຖວເກົ່າທີ່ບໍ່ຢູ່ໃນໄຟລ໌)
+
+  // ---- ນຳເຂົ້າ: ຂຽນທັບແຖວທີ່ id ຕົງກັນ (ບໍ່ລຶບຂອງເກົ່າທີ່ບໍ່ຢູ່ໃນໄຟລ໌) ----
   $("#importData").addEventListener("change", async event => {
     const file = event.target.files[0]; if (!file) return;
+    const box = $("#exportInfo");
     try {
       const imported = JSON.parse(await file.text());
-      if (!Array.isArray(imported.products) || !Array.isArray(imported.categories) || !Array.isArray(imported.orders)) throw new Error("bad shape");
-      if (!confirm("ຂໍ້ມູນນີ້ຈະຖືກຂຽນທັບໃນຖານຂໍ້ມູນອອນລາຍ (ທຸກຄົນຈະເຫັນທັນທີ). ດຳເນີນການບໍ?")) return;
-      for (const category of imported.categories) await supabase.from("categories").upsert(category);
-      for (const product of imported.products) await supabase.from("products").upsert(product);
-      for (const order of imported.orders) await supabase.from("orders").upsert(order);
-      for (const expense of (imported.expenses || [])) await supabase.from("expenses").upsert(expense);
-      if (imported.profile || imported.payment) await supabase.from("settings").update({ profile: imported.profile || {}, payment: imported.payment || {} }).eq("id", "store");
-      toast("ນຳເຂົ້າຂໍ້ມູນສຳເລັດ");
-    } catch (err) { console.error(err); toast("ຟາຍນີ້ບໍ່ຖືກຮູບແບບ ຫຼື ນຳເຂົ້າບໍ່ສຳເລັດ"); } finally { event.target.value = ""; }
+      if (!Array.isArray(imported.products) || !Array.isArray(imported.categories)) throw new Error("bad shape");
+      const c = imported.meta?.counts || {};
+      const summary = [`ໝວດ/ລຸ້ນ ${(imported.categories || []).length}`, `ສິນຄ້າ ${(imported.products || []).length}`,
+        `ອໍເດີ ${(imported.orders || []).length}`, `ບັນຊີ ${(imported.ledger || []).length} ແຖວ`].join(" · ");
+      if (!confirm(`ນຳເຂົ້າຂໍ້ມູນນີ້ບໍ?\n\n${summary}\nສຳຮອງເມື່ອ: ${(imported.meta?.exportedAt || "-").slice(0, 16).replace("T", " ")}\n\n` +
+                   `ແຖວທີ່ id ຕົງກັນຈະຖືກຂຽນທັບ · ຂອງເກົ່າທີ່ບໍ່ຢູ່ໃນໄຟລ໌ຈະບໍ່ຖືກລຶບ\n` +
+                   `⚠ ຮູບພາບຍັງຊີ້ໄປບ່ອນເກັບຂອງໂປຣເຈັກເດີມ`)) { event.target.value = ""; return; }
+
+      // ຂຽນເປັນຊຸດລະ 200 — ໄວກວ່າຂຽນເທື່ອລະແຖວຫຼາຍສິບເທົ່າ
+      const CH = 200;
+      const push = async (table, rows) => {
+        if (!Array.isArray(rows) || !rows.length) return 0;
+        let done = 0;
+        for (let i = 0; i < rows.length; i += CH) {
+          const part = rows.slice(i, i + CH);
+          const { error } = await supabase.from(table).upsert(part);
+          if (error) { console.error(table, error); throw new Error(`${table}: ${error.message}`); }
+          done += part.length;
+          if (box) box.innerHTML = `<span class="save-flag ok">ກຳລັງນຳເຂົ້າ ${table} ${done}/${rows.length}...</span>`;
+        }
+        return done;
+      };
+      // ລຳດັບສຳຄັນ: ໝວດກ່ອນ (ສິນຄ້າອ້າງອີງໝວດ) · ອໍເດີກ່ອນບັນຊີ (ບັນຊີອ້າງອີງອໍເດີ)
+      await push("categories", imported.categories);
+      await push("products", imported.products);
+      await push("orders", imported.orders);
+      await push("expenses", imported.expenses);
+      await push("assets", imported.assets);
+      await push("employees", imported.employees);
+      await push("debts", imported.debts);
+      await push("ledger", imported.ledger);
+
+      const setRow = {};
+      if (imported.settings) Object.assign(setRow, imported.settings, { id: "store" });
+      else {
+        if (imported.profile) setRow.profile = imported.profile;
+        if (imported.payment) setRow.payment = imported.payment;
+        if (imported.couriers) setRow.couriers = imported.couriers;
+        if (imported.colorOptions) setRow.colorOptions = imported.colorOptions;
+        if (imported.pricing) setRow.pricing = imported.pricing;
+      }
+      if (Object.keys(setRow).length) {
+        setRow.id = "store";
+        const { error } = await supabase.from("settings").upsert(setRow);
+        if (error) console.error("settings", error);
+      }
+      await Promise.all([refreshCategories(), refreshProducts(), refreshOrders(), refreshExpenses(), refreshSettings(), refreshBooksAll()]);
+      if (box) box.innerHTML = `<span class="save-flag ok">✓ ນຳເຂົ້າສຳເລັດ: ${summary}</span>`;
+      toast("✓ ນຳເຂົ້າຂໍ້ມູນສຳເລັດ");
+    } catch (err) {
+      console.error(err);
+      if (box) box.innerHTML = `<span class="save-flag bad">ນຳເຂົ້າບໍ່ສຳເລັດ: ${escapeHtml(err.message || "")}</span>`;
+      toast("ນຳເຂົ້າບໍ່ສຳເລັດ: " + (err.message || "ຟາຍບໍ່ຖືກຮູບແບບ"));
+    } finally { event.target.value = ""; }
   });
 });
